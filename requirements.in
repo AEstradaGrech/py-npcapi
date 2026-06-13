@@ -1,0 +1,16 @@
+fastapi[standard]
+loguru
+pymongo
+pydantic
+dotenv
+
+nltk
+spacy
+
+langchain-core
+langchain-ollama
+langgraph
+
+pillow
+pandas
+datasets
