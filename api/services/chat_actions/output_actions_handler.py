@@ -2,18 +2,13 @@ from typing import List
 
 from api.infrastructure.llm.llm_provider import LLM_Provider
 from api.models.prompting_schemas import ChatPromptRequest
-from api.services.chat_actions.action_result import ActionResult, ActionResultOutcome
+from api.services.chat_actions.action_result import ActionResult, ActionResultOutcome, ChatInteractionResult
 from api.services.chat_actions.chat_ends import EndChatResult, UserEndReqResult
 from api.services.chat_actions.fight_action import FightActionResult
 from api.services.chat_actions.join_action import JoinActionResult, LeavePartyActionResult
 from api.services.chat_actions.quest_action import QuestActionResult
 from api.services.chat_actions.trade_action import TradeActionResult
 from api.utils.statics import event_tags
-
-class ChatInteractionResult(ActionResult):
-    def __init__(self, action:str, reason:str):
-        super().__init__(action=action, reason=reason)
-        self.is_chat_ending = False
 
 class OutputActionsHandler:
     def get_chat_result(self, action:str="404") -> ActionResult:

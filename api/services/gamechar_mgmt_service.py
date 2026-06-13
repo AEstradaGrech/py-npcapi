@@ -5,6 +5,7 @@ from typing import List
 from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
 
+from api.infrastructure.llm.llm_provider import LLM_Provider
 from api.infrastructure.models.char_db_schemas import CharacterPersonalityDoc, CharacterRoleDoc, CharacterTraitDoc
 from api.infrastructure.models.db_schemas import SystemMessageDoc
 from api.infrastructure.repositories.mongo.chat_prompts import GameCharDoc

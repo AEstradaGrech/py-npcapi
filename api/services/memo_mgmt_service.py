@@ -4,6 +4,7 @@ from datetime import datetime
 from bson import ObjectId
 from loguru import logger
 
+from api.infrastructure.llm.llm_provider import LLM_Provider
 from api.infrastructure.models.char_db_schemas import CharacterMoodDoc
 from api.infrastructure.models.db_schemas import ChatDetailsDoc, ChatPromptDoc, ChatSummaryDoc, SessionDoc, SystemMessageDoc
 from api.infrastructure.repositories.mongo.chat_prompts import ChatDetailsRepository, ChatPromptsRepository, ChatSessionsRepository
@@ -11,12 +12,14 @@ from api.infrastructure.repositories.mongo.chat_summaries_repo import ChatSummar
 from api.infrastructure.repositories.mongo.mongo_repos import GameCharsRepository
 from api.infrastructure.repositories.mongo.sysmsgs_repo import SysMessagesRepository
 from api.models.schemas import QueryCondition
+from api.services.chats_mgmt_service import ChatsMgmtService
 from api.services.mood_analysis_service import MoodAnalysisService
 from api.utils.helpers import HTTPLoggedException, update_memo_cache_value
 from api.utils.statics import event_tags, chat_turns_to_generate_memory, sys_message_types, praise_db_name, default_db_name, min_chat_turns_for_longterm_summary
 
 class MemoMgmtService():
 
+    _chats_svc: ChatsMgmtService = None
     _chatsRepo: ChatPromptsRepository = None
     _sysRepo: SysMessagesRepository = None
     _sessionsRepo: ChatSessionsRepository = None
@@ -117,7 +120,7 @@ class MemoMgmtService():
                 summary=memory[1].strip(),
                 observations=["full-chat", f"{event_tags.assistant_memo}:LONG_MEMO"]
             )
-            memory_insert = await praise_service.create_summary(memo)
+            memory_insert = await self.create_summary(memo)
             #TODO: Session.Summary generation = Analisis de relacion con char y clasificacion FoEoN
             sessions_repo = ChatSessionsRepository(praise_db_name)
             session_doc = SessionDoc.model_validate(await sessions_repo.get_by_id(chat.session_id))

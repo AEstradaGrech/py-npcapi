@@ -1,5 +1,6 @@
-from api.infrastructure.models.db_schemas import CharacterMoodDoc, CharacterPersonalityDoc, CharacterRoleDoc, CharacterTraitDoc, ChatDetailsDoc, GameCharDoc
+from api.infrastructure.models.char_db_schemas import CharacterMoodDoc, CharacterPersonalityDoc, CharacterRoleDoc, CharacterTraitDoc
 from api.infrastructure.repositories.mongo.base_repo import MongoRepository
+from api.infrastructure.repositories.mongo.chat_prompts import GameCharDoc
 
 
 class CharacterRolesRepository(MongoRepository[CharacterRoleDoc]):

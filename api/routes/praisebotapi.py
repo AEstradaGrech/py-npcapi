@@ -1,16 +1,18 @@
-from typing import Any, List, Optional
+from typing import Any
 from bson import ObjectId
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
-from pydantic import BaseModel
 from api.infrastructure.models.db_schemas import ChatDetailsDoc, ChatPromptDoc, ChatSummaryDoc, SessionDoc, SystemMessageDoc
 from api.infrastructure.models.primitives import ChatEvent, ChatMessage
+from api.infrastructure.models.reasoning_schemas import ActionDecision
 from api.infrastructure.repositories.mongo.chat_prompts import ChatDetailsRepository, ChatPromptsRepository, ChatSessionsRepository, GameCharDoc
 from api.infrastructure.repositories.mongo.chat_summaries_repo import ChatSummariesRepository
 from api.infrastructure.repositories.mongo.sysmsgs_repo import SysMessagesRepository
 from api.mappers.prompting_mappers import botInfoToGenRequest, sessionDocToChatInitDto
+from api.models.prompting_schemas import ActionAcknowledgeDto, ActionOutcomeDto, ChatPromptRequest, ChatResultDto, ConversationDto, ConversationPromptDto, SessionHistoryUpdateRequest, StreamEndResponse, UnrealChatUpdateRequest, UnrealStreamEnd, UpdateModelSettingsRequest
+from api.models.schemas import QueryCondition
 from api.services.botctx_mgmt_service import BotContextMgmtService
 from api.services.chat_actions.action_result import ActionResultOutcome
 from api.services.chat_actions.output_actions_handler import OutputActionsHandler
@@ -19,10 +21,6 @@ from api.services.memo_mgmt_service import MemoMgmtService
 from api.services.mood_analysis_service import MoodAnalysisService
 from api.utils.helpers import HTTPLoggedException, unreal_messages_to_history, chat_history_to_unreal
 from api.utils.statics import praise_db_name, event_tags, chat_event_cats, chat_turns_to_generate_memory, sys_message_types, max_ctx_len
-
-
-
-from api.models.schemas import ActionAcknowledgeDto, ActionDecision, ActionOutcomeDto, ChatPromptRequest, ChatResultDto, ConversationDto, ConversationPromptDto, GenerateCharacterRequest, QueryCondition, SessionDto, SessionHistoryUpdateRequest, SpacyNER, StreamEndResponse, UpdateModelSettingsRequest, UnrealStreamEnd, UnrealChatUpdateRequest, UnrealChatHistory, ChatMessageDto
 
 router = APIRouter(prefix="/praise-bot/chat")
 

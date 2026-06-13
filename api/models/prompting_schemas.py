@@ -186,3 +186,8 @@ class ActionOutcomeDto(BaseModel):
     userMessage: str = Field(description="User OutputAction acknowledge / reject message")
     instructionUpdate:Optional[str] = Field(description="a [assistant-context-update] instruction to force a specific response / attitude / behaviour in the LLM", default=None)
     endChat: bool = Field(description="A flag to indicate whether the conversation should end after the LLM response or continue with the chat loop")
+
+class UpdateModelSettingsRequest(BaseModel):
+    model_name: Optional[str] = Field(description="name of the new model to use during inference", default=None)
+    max_tokens: Optional[int] = Field(description="Max allowed tokens for the llm",default=None)
+    temperature: Optional[float] = Field(description="Allows for a certain amount of creativity on the LLM response. The lower the value, more accurate will be the answer regarding the sys prompt", default=None)

@@ -6,8 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.infrastructure.models.primitives import ChatEvent, ChatMessage
 from api.infrastructure.repositories.mongo.base_repo import PyObjectId
-from api.models.prompting_schemas import ChatDocDto
-from api.models.schemas import InitSessionRequest
+from api.models.prompting_schemas import ChatDocDto, InitSessionRequest
 from api.utils.statics import default_chat_history_length
 
 

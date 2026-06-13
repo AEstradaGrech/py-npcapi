@@ -3,8 +3,9 @@ from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.agents import create_agent
-from api.models.schemas import ChatReplicaRequest
 from loguru import logger
+
+from api.models.prompting_schemas import ChatReplicaRequest
 
 router = APIRouter(prefix="/data-generator")
 
@@ -42,6 +43,9 @@ async def generate_chat(request: ChatReplicaRequest):
 
 @tool()
 async def generate_character() -> str:
+    """
+    Ahoy
+    """
     #svc.generate_character()
     # save_character
     # return f"{char_id} -ROLE: NPC {char_name}"
@@ -49,4 +53,7 @@ async def generate_character() -> str:
 
 @tool()
 async def chat_prompt(role:str, id:str) -> str:
+    """
+    TODO
+    """
     return "WIP"

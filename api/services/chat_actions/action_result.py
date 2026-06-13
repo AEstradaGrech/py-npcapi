@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import List, Optional
 
 from api.infrastructure.llm.llm_provider import LLM_Provider
@@ -24,7 +25,7 @@ class ActionResultOutcome:
         self.instruction_update = ctx_upd
         self.is_ending_response = is_ending_response
 
-class ActionResult():
+class ActionResult(ABC):
     action_tag:str
     reason:str
     is_chat_ending:bool
@@ -246,3 +247,9 @@ class ActionResult():
             context=analysis_result["CONTEXT"],
             reason=analysis_result["REASON"])
         return memo
+    
+class ChatInteractionResult(ActionResult):
+    def __init__(self, action:str, reason:str):
+        super().__init__(action=action, reason=reason)
+        self.is_chat_ending = False
+

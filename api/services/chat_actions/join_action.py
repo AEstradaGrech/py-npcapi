@@ -3,8 +3,7 @@ from typing import List, override
 from api.infrastructure.llm.llm_provider import LLM_Provider
 from api.infrastructure.models.db_schemas import ChatSummaryDoc, SystemMessageDoc
 from api.infrastructure.models.reasoning_schemas import JoinEventAnalysis, JoinRejectAnalysis, LeavePartyEventAnalysis, StayInGroupEventAnalysis
-from api.services.chat_actions.action_result import ActionResultOutcome
-from api.services.chat_actions.output_actions_handler import ChatInteractionResult
+from api.services.chat_actions.action_result import ActionResultOutcome, ChatInteractionResult
 from api.utils.helpers import HTTPLoggedException, get_ctx_num_for_text
 from api.utils.statics import event_tags, sys_message_types
 

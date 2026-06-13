@@ -1,5 +1,4 @@
 from typing import override
-
 from api.infrastructure.llm.llm_provider import LLM_Provider
 from api.services.chat_actions.action_result import ActionResult, ActionResultOutcome
 from api.utils.helpers import HTTPLoggedException

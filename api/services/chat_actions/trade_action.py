@@ -1,8 +1,5 @@
 from typing import override
-
-from api.services.chat_actions.action_result import ActionResultOutcome
-from api.services.chat_actions.output_actions_handler import ChatInteractionResult
-
+from api.services.chat_actions.action_result import ActionResultOutcome, ChatInteractionResult
 
 class TradeActionResult(ChatInteractionResult):
     def __init__(self, reason:str):

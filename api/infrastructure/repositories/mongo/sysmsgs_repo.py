@@ -1,7 +1,7 @@
 from typing import List
 
 from api.infrastructure.models.db_schemas import SystemMessageDoc
-from api.infrastructure.repositories.mongo.base_repo import MongoRepository
+from api.infrastructure.repositories.mongo.base_repo import T, MongoRepository
 
 
 class SysMessagesRepository(MongoRepository[SystemMessageDoc]):

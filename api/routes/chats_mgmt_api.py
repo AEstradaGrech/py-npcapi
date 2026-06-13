@@ -15,7 +15,7 @@ from fastapi import APIRouter, Request
 from api.models.schemas import CollectionResponse, QueryCondition, QueryFilter
 from api.utils.helpers import HTTPLoggedException, get_request_db_name
 from api.utils.statics import default_db_name, praise_db_name
-router = APIRouter("/mgmt/chats")
+router = APIRouter(prefix="/mgmt/chats")
 
 @router.get(
     "/{tag}/session",
@@ -24,9 +24,9 @@ router = APIRouter("/mgmt/chats")
         200 : {"description": "Succesful response with the Session doc for this character and player"}
     }
 )
-async def get_chat_session(tag:str) -> SessionDto:
+async def get_chat_session(tag:str, request: Request) -> SessionDto:
     #get session
-    sessions_repo = ChatSessionsRepository()
+    sessions_repo = ChatSessionsRepository(db_name=get_request_db_name(request))
     record = await sessions_repo.get(varname="tag", value=tag)
     return SessionDto(tag=tag) if record is None else sessionDocToDto(SessionDoc.model_validate(record))
 

@@ -2,8 +2,7 @@ from typing import List, override
 
 from api.infrastructure.llm.llm_provider import LLM_Provider
 from api.infrastructure.models.reasoning_schemas import QuestEventAnalysis
-from api.services.chat_actions.action_result import ActionResultOutcome
-from api.services.chat_actions.output_actions_handler import ChatInteractionResult
+from api.services.chat_actions.action_result import ActionResultOutcome, ChatInteractionResult
 from api.utils.helpers import HTTPLoggedException, replace_values
 from api.utils.statics import sys_message_types
 
