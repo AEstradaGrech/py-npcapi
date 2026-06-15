@@ -59,7 +59,7 @@ class ActionResult(ABC):
         self._memo_svc = MemoMgmtService(self._currentDB)
         self._chatsRepo = ChatPromptsRepository(self._currentDB)
         self._detailsRepo = ChatDetailsRepository(self._currentDB)
-        self._sysRepo = SysMessagesRepository(self._sysRepo)
+        self._sysRepo = SysMessagesRepository(self._currentDB)
 
     async def notify_chat_event(self, chat_id:str, message:str, chat_turn_id:int = None) -> bool:
         return await self._chats_svc.insert_chat_event(
@@ -249,7 +249,7 @@ class ActionResult(ABC):
         return memo
     
 class ChatInteractionResult(ActionResult):
-    def __init__(self, action:str, reason:str):
-        super().__init__(action=action, reason=reason)
+    def __init__(self, action:str, reason:str, repos_db:str = None):
+        super().__init__(action=action, reason=reason, repos_db=repos_db)
         self.is_chat_ending = False
 

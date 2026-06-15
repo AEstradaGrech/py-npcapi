@@ -14,7 +14,7 @@ summary_role_tags = {
 default_db_name = "PyNPCsDB"
 praise_db_name = "PraiseDB"
 max_ctx_len = 10000
-
+ctx_len_offset = 100
 class SysMessageType:
     base_template:int = 0
     chat_constraints:int = 1

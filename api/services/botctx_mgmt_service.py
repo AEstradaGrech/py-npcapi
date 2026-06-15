@@ -1,4 +1,4 @@
-from random import random
+import random
 from typing import List
 
 from loguru import logger
@@ -47,6 +47,21 @@ class BotContextMgmtService:
             doc = SystemMessageDoc.model_validate(await self._sysRepo.get_by_type_and_tag(type=sys_message_types.output_action, tag=action))
             result += f"> {doc.tag}: {doc.message}\n"
         return result
+    
+    async def get_output_action_docs(self, filter_tags:List[str] = []) -> List[SystemMessageDoc]:
+        results = []
+        repo = SysMessagesRepository(praise_db_name)
+        docs = await repo.query(conditions=[QueryCondition(field="type", value=sys_message_types.output_action)])
+        if len(docs) == 0:
+            return []
+        if len(filter_tags) > 0:
+            for item in docs:
+                doc = SystemMessageDoc.model_validate(item)
+                if doc.tag in filter_tags:
+                    results.append(doc)
+        else:
+            results = [SystemMessageDoc.model_validate(doc) for doc in docs]
+        return results
     
     def join_sys_msgs(self, msgs: List[SystemMessageDoc], separator:str=",", substring:int=-1) -> str:
         result = ""

@@ -36,4 +36,3 @@ class GameCharDoc(BaseModel):
     typical_routines: str = Field(description="Day-to-day activities and habits  Includes professional duties, personal habits, social interactions, and pastimes.")
     motivations: str = Field(description="Core driving forces and desires. Includes ideological (beliefs), professional (career goals), personal (relationships), and psychological (internal needs) motivations.")
     goal: Optional[str] = Field(description="Current character goal in life (if any). It might generate (or help to generate) a game QUEST event depending on it's relationship with the player")
-

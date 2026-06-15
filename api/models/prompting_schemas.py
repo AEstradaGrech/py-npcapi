@@ -191,3 +191,8 @@ class UpdateModelSettingsRequest(BaseModel):
     model_name: Optional[str] = Field(description="name of the new model to use during inference", default=None)
     max_tokens: Optional[int] = Field(description="Max allowed tokens for the llm",default=None)
     temperature: Optional[float] = Field(description="Allows for a certain amount of creativity on the LLM response. The lower the value, more accurate will be the answer regarding the sys prompt", default=None)
+
+class ChatEventDto(BaseModel):
+    tag_id:int = Field(description="Event tag id to be converted to string inside the API")
+    message:str = Field(description="Event message")
+    category:str = Field(description="Chat Event Category ('assistant' | 'user' | 'remmarkable-event' | 'action-tag')")

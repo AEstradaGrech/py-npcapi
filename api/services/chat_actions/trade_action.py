@@ -2,8 +2,8 @@ from typing import override
 from api.services.chat_actions.action_result import ActionResultOutcome, ChatInteractionResult
 
 class TradeActionResult(ChatInteractionResult):
-    def __init__(self, reason:str):
-        super().__init__(action="TRADE", reason=reason)
+    def __init__(self, reason:str, repos_db: str = None):
+        super().__init__(action="TRADE", reason=reason, repos_db=repos_db)
         self.default_acknowledge_msg = "Thanks, it has been a good deal for both parts. Until the next time!"
         self.default_rejection_msg = "No thanks, maybe later."
         self.end_chat_event = ""

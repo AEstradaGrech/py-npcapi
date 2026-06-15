@@ -8,8 +8,8 @@ from api.utils.helpers import HTTPLoggedException, get_ctx_num_for_text
 from api.utils.statics import event_tags, sys_message_types
 
 class JoinActionResult(ChatInteractionResult):
-    def __init__(self, reason:str):
-        super().__init__(action="JOIN", reason=reason)
+    def __init__(self, reason:str, repos_db:str = None):
+        super().__init__(action="JOIN", reason=reason, repos_db=repos_db)
         self.complementary_action = "LEAVE_PARTY"
         self.action_sysmsg_id = sys_message_types.join_party_template
         self.default_acknowledge_msg = f"Fine, I'm glad we are on the same team!"
@@ -62,7 +62,7 @@ class JoinActionResult(ChatInteractionResult):
         analysis_text = analysis_text.replace("<<USERNAME>>", username)
         analysis_text = analysis_text.replace("<<BOTNAME>>", botname)
         print("-- JOIN >> ANALYSIS TEMPLATED TEXT --", analysis_text)
-        llm = llm_provider.current_integration().fresh_model_instance(model="llama3.1-lexi-v2", temperature=0.5, max_tokens=450, ctx_len=get_ctx_num_for_text(analysis_text))
+        llm = llm_provider.fresh_model_instance(model=llm_provider.current_model(), config=llm_provider.config().get_settings_preset("analyis"), ctx_len=get_ctx_num_for_text(analysis_text))
         analysis_llm = llm.with_structured_output(schema=JoinEventAnalysis)
         analysis_result:JoinEventAnalysis = analysis_llm.invoke(analysis_text)
         return { "CONTEXT":analysis_result.context, "REASON": analysis_result.goal, "PROMPT": analysis_text}
@@ -73,7 +73,7 @@ class JoinActionResult(ChatInteractionResult):
         analysis_text = analysis_text.replace("<<USERNAME>>", username)
         analysis_text = analysis_text.replace("<<BOTNAME>>", botname)
         print("-- JOIN REJECT>> ANALYSIS TEMPLATED TEXT --", analysis_text)
-        llm = llm_provider.current_integration().fresh_model_instance(model="llama3.1-lexi-v2", temperature=0.5, max_tokens=450, ctx_len=get_ctx_num_for_text(analysis_text))
+        llm = llm_provider.current_integration().fresh_model_instance(model=llm_provider.current_model(), config=llm_provider.config().get_settings_preset("analyis"), ctx_len=get_ctx_num_for_text(analysis_text))
         analysis_llm = llm.with_structured_output(schema=JoinRejectAnalysis)
         analysis_result:JoinEventAnalysis = analysis_llm.invoke(analysis_text)
         print("-- JOIN REJECT>> ANALYSIS RESULT --", analysis_result)
@@ -102,8 +102,8 @@ class JoinActionResult(ChatInteractionResult):
     
 
 class LeavePartyActionResult(ChatInteractionResult):
-    def __init__(self, reason:str):
-        super().__init__(action="LEAVE_PARTY", reason=reason)
+    def __init__(self, reason:str, repos_db:str = None):
+        super().__init__(action="LEAVE_PARTY", reason=reason, repos_db=repos_db)
         self.complementary_action = "JOIN"
         self.action_sysmsg_id = sys_message_types.leave_party_template
         self.default_acknowledge_msg = f"Good luck."
@@ -193,7 +193,7 @@ class LeavePartyActionResult(ChatInteractionResult):
         analysis_text = llm_provider.chat_history_to_template(chat_history=summarization_msgs, exclude_sys_message=False, exclude_sys_updates=False, template_key="praise")
         analysis_text = analysis_text.replace("<<USERNAME>>", username).replace("<<BOTNAME>>", botname)
         print("-- LEAVE_PARTY >> ANALYSIS TEMPLATED TEXT --", analysis_text)
-        llm = llm_provider.current_integration().fresh_model_instance(model="llama3.1-lexi-v2", temperature=0.5, max_tokens=450, ctx_len=get_ctx_num_for_text(analysis_text))
+        llm = llm_provider.fresh_model_instance(model=llm_provider.current_model(), config=llm_provider.config().get_settings_preset("analyis"), ctx_len=get_ctx_num_for_text(analysis_text))
         analysis_llm = llm.with_structured_output(schema=LeavePartyEventAnalysis)
         analysis_result:LeavePartyEventAnalysis = analysis_llm.invoke(analysis_text)
         return { "CONTEXT":analysis_result.context, "REASON": analysis_result.reason, "PROMPT": analysis_text}
@@ -203,7 +203,7 @@ class LeavePartyActionResult(ChatInteractionResult):
         analysis_text = llm_provider.chat_history_to_template(chat_history=summarization_msgs, exclude_sys_message=False, exclude_sys_updates=False, template_key="praise")
         analysis_text = analysis_text.replace("<<USERNAME>>", username).replace("<<BOTNAME>>", botname)
         print("-- LEAVE REJECTION ANAL PROMPT --", analysis_text)
-        llm = llm_provider.current_integration().fresh_model_instance(model="llama3.1-lexi-v2", temperature=0.5, max_tokens=500, ctx_len=get_ctx_num_for_text(analysis_text))
+        llm = llm_provider.fresh_model_instance(model=llm_provider.current_model(), config=llm_provider.config().get_settings_preset("analyis"), ctx_len=get_ctx_num_for_text(analysis_text))
         analysis_llm = llm.with_structured_output(schema=StayInGroupEventAnalysis)
         analysis_result:StayInGroupEventAnalysis = analysis_llm.invoke(analysis_text)
         print("-- ON STAY IN GROUP EVALUATION --", analysis_result)

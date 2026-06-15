@@ -4,6 +4,9 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
+from api.infrastructure.llm.llm_provider import LLM_Provider
+from api.infrastructure.llm.ollama_provider import Ollama_Provider
+from api.infrastructure.llm.settings.ollama_config import Ollama_Config
 from api.infrastructure.models.db_schemas import ChatDetailsDoc, ChatPromptDoc, ChatSummaryDoc, SessionDoc, SystemMessageDoc
 from api.infrastructure.models.primitives import ChatEvent, ChatMessage
 from api.infrastructure.models.reasoning_schemas import ActionDecision
@@ -19,8 +22,8 @@ from api.services.chat_actions.output_actions_handler import OutputActionsHandle
 from api.services.gamechar_mgmt_service import CharactersMgmtService
 from api.services.memo_mgmt_service import MemoMgmtService
 from api.services.mood_analysis_service import MoodAnalysisService
-from api.utils.helpers import HTTPLoggedException, unreal_messages_to_history, chat_history_to_unreal
-from api.utils.statics import praise_db_name, event_tags, chat_event_cats, chat_turns_to_generate_memory, sys_message_types, max_ctx_len
+from api.utils.helpers import HTTPLoggedException, get_llm_provider, get_request_db_name, unreal_messages_to_history, chat_history_to_unreal
+from api.utils.statics import praise_db_name, event_tags, chat_event_cats, chat_turns_to_generate_memory, sys_message_types, max_ctx_len, max_ctx_len, ctx_len_offset
 
 router = APIRouter(prefix="/praise-bot/chat")
 
@@ -34,15 +37,16 @@ router = APIRouter(prefix="/praise-bot/chat")
 async def init_conversation(dto: ConversationDto, request: Request):
     print("-- ON INIT CONVERSATION REQ DTO:", dto)
     user_header = request.headers.get('app-username')
-    chars_svc = CharactersMgmtService()
-    chats_svc = CharactersMgmtService()
-    memo_svc = MemoMgmtService()
-    ctx_svc = BotContextMgmtService()
+    chars_svc = CharactersMgmtService(get_request_db_name(request))
+    chats_svc = CharactersMgmtService(get_request_db_name(request))
+    memo_svc = MemoMgmtService(get_request_db_name(request))
+    ctx_svc = BotContextMgmtService(get_request_db_name(request))
     db_character: GameCharDoc = None
+    llm_provider: LLM_Provider = get_llm_provider()
     if dto.botInfo.characterId is None:
         logger.warning("-- GENERATING CHARACTER FOR BOTINFO --")
         print(dto.botInfo)
-        new_character = await chars_svc.generate_character(botInfoToGenRequest(dto.botInfo), request.app.model_provider)
+        new_character = await chars_svc.generate_character(botInfoToGenRequest(dto.botInfo), llm_provider=llm_provider)
         if new_character is None:
             raise HTTPLoggedException(status_code=500, detail= f"An error has occured while creating the new character")
         db_character = GameCharDoc.model_validate(await chars_svc.save_game_character(new_character))
@@ -61,9 +65,9 @@ async def init_conversation(dto: ConversationDto, request: Request):
         print(db_character)
     else: 
         db_character = GameCharDoc.model_validate(await chars_svc.get_character(dto.botInfo.characterId))
-    sessions_repo = ChatSessionsRepository(praise_db_name)
-    chats_repo = ChatPromptsRepository(praise_db_name)
-    chat_details_repo = ChatDetailsRepository(praise_db_name)
+    sessions_repo = ChatSessionsRepository(get_request_db_name(request))
+    chats_repo = ChatPromptsRepository(get_request_db_name(request))
+    chat_details_repo = ChatDetailsRepository(get_request_db_name(request))
     #SET INITIAL BOT MOOD
     mood_analysis_service = MoodAnalysisService()
     dto.botInfo.mood = mood_analysis_service.handle_personality_mood_transition("Relaxed", dto.botInfo.personalities)
@@ -80,7 +84,7 @@ async def init_conversation(dto: ConversationDto, request: Request):
         sessionId=session_doc.id,
         username=user_header,
         tag=f"{dto.botInfo.charName}-{dto.speakerInfo.charName}",
-        model=request.app.model_provider.current_model() if dto.model is None else dto.model,
+        model=llm_provider.current_model() if dto.model is None else dto.model,
         maxTokens=dto.maxTokens,
         temperature=dto.temperature,
         messages=[ChatMessage(Role="system", Message=sys_msgs["BASE"])] #sys_msgs["BASE"]
@@ -139,7 +143,7 @@ async def init_conversation(dto: ConversationDto, request: Request):
                                                     tag="event_tags", 
                                                     message=f">> RECENT CONVERSATION RECALL >> chat_id: {session_doc.current_chat_id}"))
         remarkable_events_text = ""
-        memos_repo  = ChatSummariesRepository(praise_db_name) 
+        memos_repo  = ChatSummariesRepository(get_request_db_name(request)) 
         #           18/03/25 --> se cargan todos para incluir FACTS y/o CONTRACTS | CAMBIOS_FACTION ({{ENROLL}}) - {{DISCHARGE}}
         #                    --> se añade sistema de tags para memos
         #                           - Summary.observations[0] = chat-remarkable-event (ChatEvent category)
@@ -211,7 +215,7 @@ async def test_init_conversation(dto: ConversationDto) -> Any:
     return await botctx_svc.get_base_instruction_CoTv2(dto)
 
 @router.post(
-    "/{chat_id}/handle-conversation",
+    "/{chat_id}/handle-conversation/v1",
     summary="continues a conversation with a game character",
     responses={
         200 : {"description": "Succesful response streaming back the llm response (valga la redundancia)"}
@@ -230,16 +234,10 @@ async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Re
     ############## TODO: quitar (devonly) ################
     #await on_llm_settings_update(chat_id=chat_id, dto=UpdateModelSettingsRequest(model_name=dto.model, max_tokens=dto.maxTokens, temperature=dto.temperature), request=request)
     ######################################################
-    
-    ############# v2 09/06/2026 ##############
-    # chat history + memos + char_Actions + profile <- SELECT ACTION
-    # chat_sysms = lo mismo pero le quito las actions disponibles -> añado un #IMPORTANT : action + reason
-
-    #########################################
-
-    repo = ChatPromptsRepository(praise_db_name)
+    memo_service = MemoMgmtService(get_request_db_name(request))
+    repo = ChatPromptsRepository(get_request_db_name(request))
     doc = ChatPromptDoc.model_validate(await repo.get_by_id(chat_id))
-    details_repo = ChatDetailsRepository(praise_db_name)
+    details_repo = ChatDetailsRepository(get_request_db_name(request))
     details = ChatDetailsDoc.model_validate(await details_repo.get(varname="chat_doc_id", value=chat_id))
     #TODO: a PraiseMgmtService
     context_update = ""
@@ -291,7 +289,96 @@ async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Re
     if context_update != "":
         doc.messages.append(ChatMessage(Role="context", Message=context_update))
         await repo.update(doc.id, doc)
-    sys_repo = SysMessagesRepository(praise_db_name)
+    prompt_request.chat_history = await memo_service.handle_chat_assistant_memo(chat_id=chat_id, recent_history=prompt_request.chat_history)
+    prompt_request.chat_history[0]["system"] = prompt_request.chat_history[0]["system"].replace("[[OutputActions]]", details.botMemory["actions"])
+    #TODO: Analisis sentimiento user_prompt --> OutputAction (NLP | LLM) v2: Agentic Tool
+    # 2: Preparar RAG(s) <- Se añade a sys_msg initial_graph_query con info speaker y zona (info fija durante conversacion). ChatsRAG para prompt + history | augmented query (v2)
+    return StreamingResponse(llm_stream(prompt_request=prompt_request, username=details.usercharName, botname=details.botcharName), media_type="text/event-stream")
+
+
+@router.post(
+    "/{chat_id}/handle-conversation/v2",
+    summary="continues a conversation with a game character",
+    responses={
+        200 : {"description": "Succesful response streaming back the llm response (valga la redundancia)"}
+    }
+)
+async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Request) -> Any:
+    """
+    Output Actions
+    """
+    logger.info(f"-- ON HANDLE CONVERSATION :: CHAT ID {chat_id} --")
+    print(dto)
+    #TODO a service (Query + Update ChatStatsDoc)
+    #sentiment_analysis = vader_analyze_current_prompt_sentiment(user_prompt=dto.speakerPrompt)
+    #if (len(recentHistory) >= default_history_chats_return) -> trigger_chat_chunk_analysis |  media suma prompts -> lo guardo como event? | Tabla BotSentimentAnalysis w BotThresholds + stats | X y ademas guardo ChatEvent cada X turns
+    #logger.info(f"-- SENTIMENT ANALYISIS RESULTS --\n", sentiment_analysis)
+    ############## TODO: quitar (devonly) ################
+    #await on_llm_settings_update(chat_id=chat_id, dto=UpdateModelSettingsRequest(model_name=dto.model, max_tokens=dto.maxTokens, temperature=dto.temperature), request=request)
+    ######################################################
+    
+    ############# v2 09/06/2026 ##############
+    # chat history + memos + char_Actions + profile <- SELECT ACTION
+    # chat_sysms = lo mismo pero le quito las actions disponibles -> añado un #IMPORTANT : action + reason
+
+    #########################################
+
+    repo = ChatPromptsRepository(get_request_db_name(request))
+    doc = ChatPromptDoc.model_validate(await repo.get_by_id(chat_id))
+    details_repo = ChatDetailsRepository(get_request_db_name(request))
+    details = ChatDetailsDoc.model_validate(await details_repo.get(varname="chat_doc_id", value=chat_id))
+    #TODO: a PraiseMgmtService
+    context_update = ""
+    if len(dto.zoneContextUpdate) > 0:
+        for message in dto.zoneContextUpdate:
+            event = ChatEvent(category=chat_event_cats.to_string(chat_event_cats.context), 
+                              chat_turn_id=len(doc.messages), 
+                              tag=event_tags.zone_ctx, 
+                              message=message)
+            if "[observation]" in message:
+                event.category = chat_event_cats.to_string(chat_event_cats.observation)
+                event.tag = "[observation]"
+                event.message = event.message.replace("[observation]:", "")
+            details.chat_events.append(event)
+            zone_ctx_upd = f"{event.tag}: {event.message.strip()}\n"
+            context_update += zone_ctx_upd
+            details.zoneContext += zone_ctx_upd
+    if len(dto.speakerContextUpdate) > 0:
+        for message in dto.speakerContextUpdate:
+            event = ChatEvent(category=chat_event_cats.to_string(chat_event_cats.user), 
+                              chat_turn_id=len(doc.messages), 
+                              tag=event_tags.user_ctx, 
+                              message=message)
+            details.chat_events.append(event)
+            speaker_ctx_upd = f"{event.tag}: {event.message.strip()}\n" 
+            context_update += speaker_ctx_upd
+            details.usercharContext += speaker_ctx_upd
+            #TODO: UPDATE DETAILS SPEAKER_CTX
+    if len(dto.botContextUpdate) > 0:
+        for message in dto.botContextUpdate:
+            event = ChatEvent(category=chat_event_cats.to_string(chat_event_cats.assistant), 
+                              chat_turn_id=len(doc.messages), 
+                              tag=event_tags.assistant_ctx, 
+                              message=message)
+            details.chat_events.append(event)
+            bot_ctx_upd = f"{event.tag}: {event.message.strip()}\n"
+            context_update += bot_ctx_upd
+            details.botcharContext += bot_ctx_upd
+    await details_repo.update(details.id, details)
+    #TODO: add to ChatDetails.chat-events?
+    prompt_request = ChatPromptRequest(
+        max_tokens=doc.max_tokens,
+        temperature=doc.temperature,
+        chat_history=doc.messages_as_recent_history(include_sys_msg=True),
+        message=dto.speakerPrompt,
+        system_message=context_update,
+        model_name=doc.model
+    )
+    if context_update != "":
+        doc.messages.append(ChatMessage(Role="context", Message=context_update))
+        await repo.update(doc.id, doc)
+    ###############################################################
+    sys_repo = SysMessagesRepository(get_request_db_name(request))
     selector_msg = await sys_repo.get_by_type_and_tag(type=sys_message_types.base_template, tag="action-selector-v0.0.1")
     logger.warning("-- on action selector sys msg query --")
     print(selector_msg)
@@ -299,11 +386,12 @@ async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Re
         raise HTTPLoggedException(status_code=500, detail="No sys message found with tag: action-selector-v0.0.2")
     selector_doc =SystemMessageDoc.model_validate(selector_msg);
     chat_context = "" #formatted chat history + memos & events
-    
     selector_chats = prompt_request.chat_history[1:]
     logger.warning("-- selector chats --")
     print(selector_chats)
-    formatted_chat = request.app.model_provider.chat_history_to_template(chat_history=selector_chats, assistant_guidance_token="", template_key="praise")
+    llm_provider: Ollama_Provider = get_llm_provider()
+    #############################################################
+    formatted_chat = llm_provider.chat_history_to_template(chat_history=selector_chats, assistant_guidance_token="", template_key="praise")
     formatted_chat = formatted_chat.replace("<<USERNAME>>", details.usercharName)
     formatted_chat = formatted_chat.replace("<<BOTNAME>>", details.botcharName)
     if formatted_chat == None:
@@ -329,19 +417,19 @@ async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Re
     selector_msg = f"{selector_msg}\n\n{parser_instruction}"
     logger.warning("FINAL SELECTOR MESSAGE")
     print(selector_msg)
-    llm = request.app.model_provider.current_integration().fresh_model_instance(model=prompt_request.model_name,temperature=prompt_request.temperature, max_tokens=prompt_request.max_tokens, ctx_len=len(selector_msg) + 100 if len(selector_msg) <= max_ctx_len else max_ctx_len)
+    llm = llm_provider.fresh_model_instance(model=prompt_request.model_name, config=Ollama_Config().get_settings_preset("chat"), ctx_len=len(selector_msg) + 100 if len(selector_msg) <= max_ctx_len else max_ctx_len)
     action_response = llm.invoke(selector_msg)
     decision = parser.invoke(action_response)
     logger.warning("ON ACTION DECISION RESPONSE")
     print(decision)
-    memo_service = MemoMgmtService()
+    memo_service = MemoMgmtService(get_request_db_name(request))
     prompt_request.chat_history = await memo_service.handle_chat_assistant_memo(chat_id=chat_id, recent_history=prompt_request.chat_history)
     #prompt_request.chat_history[0]["system"] = prompt_request.chat_history[0]["system"].replace("[[OutputActions]]", details.botMemory["actions"])
     prompt_request.chat_history[0]["system"] = prompt_request.chat_history[0]["system"].replace("[[CommandedAction]]", f"{decision.output_action} >> REASON: {decision.reason}")
     
     #TODO: Analisis sentimiento user_prompt --> OutputAction (NLP | LLM) v2: Agentic Tool
     # 2: Preparar RAG(s) <- Se añade a sys_msg initial_graph_query con info speaker y zona (info fija durante conversacion). ChatsRAG para prompt + history | augmented query (v2)
-    return StreamingResponse(llm_stream(prompt_request=prompt_request, request=request, username=details.usercharName, botname=details.botcharName), media_type="text/event-stream")
+    return StreamingResponse(llm_stream(prompt_request=prompt_request, username=details.usercharName, botname=details.botcharName), media_type="text/event-stream")
 
 @router.post(
     "/on-stream-finished",
@@ -352,22 +440,22 @@ async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Re
 )
 async def on_stream_finished(update_request: SessionHistoryUpdateRequest, request:Request) -> StreamEndResponse:
     print("-- UPDATE REQUEST --",update_request)
-    sessions_repo = ChatSessionsRepository(praise_db_name)
-    chats_repo = ChatPromptsRepository(praise_db_name)
-    memo_service = MemoMgmtService()
+    sessions_repo = ChatSessionsRepository(get_request_db_name(request))
+    chats_repo = ChatPromptsRepository(get_request_db_name(request))
+    memo_service = MemoMgmtService(get_request_db_name(request))
     actions_handler = OutputActionsHandler()
     session = SessionDoc.model_validate(await sessions_repo.get_by_id(update_request.sessionId))
     if session is None:
         raise HTTPException(status_code=404, detail="There is no active session with that GUID. Begin a new session by making a request to '/chats/session/init'")
     chat_doc = ChatPromptDoc.model_validate(await chats_repo.get_by_id(session.current_chat_id))
     if chat_doc is None:
-        raise HTTPException(status_code=404, detail="There are no session chat messages for this session. Begin a new session by making a request to '/chats/session/init'")                                          
+        raise HTTPLoggedException(status_code=404, detail="There are no session chat messages for this session. Begin a new session by making a request to '/chats/session/init'")                                          
     #                                                         Bot se presenta    Menciona lugar   Zone | Speakers
     ### TODO: analisis de respuesta para chat-events update ([kg-char-update] | [kg-loc-update] | [ctx-update])
     chat_doc.append_history_to_messages(update_request.chatHistory)
     await chats_repo.update(chat_doc.id, chat_doc)
     print(f"-- LEN CHAT: {len(chat_doc.messages)} - TURNS TO MEMO: {chat_turns_to_generate_memory}")
-    await memo_service.update_shortmemo(chat=chat_doc, model_provider=request.app.model_provider)
+    await memo_service.update_shortmemo(chat=chat_doc, model_provider=get_llm_provider())
     history = chat_doc.messages_as_recent_history(include_sys_msg=True)
     output_action_result = await actions_handler.handle_output_actions(chat=chat_doc,history=history) #TODO --> a PraiseMgmtService
     if output_action_result.is_chat_ending:
@@ -393,12 +481,13 @@ async def on_stream_finished(update_request: SessionHistoryUpdateRequest, reques
 )
 async def auto_chat(chat_id:str, dto:ConversationDto, request:Request) -> Any:
     #get llm
-    sysrepo = SysMessagesRepository(praise_db_name)
+    sysrepo = SysMessagesRepository(get_request_db_name(request))
     prompt = await sysrepo.get_by_type_and_tag(type=sys_message_types.base_template, tag="user-autochat")
-    llm = request.app.model_provider.current_integration().fresh_model_instance(model=request.model_name,temperature=request.temperature, max_tokens=request.max_tokens, ctx_len=len(prompt) + 300 if len(prompt) <= 10000 else 10000)
+    llm_provider = get_llm_provider()
+    llm = llm_provider.fresh_model_instance(model=request.model_name, config=Ollama_Config().get_settings_preset("chat"), ctx_len=len(prompt) + ctx_len_offset if len(prompt) <= max_ctx_len else max_ctx_len)
     user_msg = llm.invoke(prompt)
     dto.speakerPrompt = user_msg
-    repo = ChatPromptsRepository(praise_db_name)
+    repo = ChatPromptsRepository(get_request_db_name(request))
     doc = ChatPromptDoc.model_validate(await repo.get_by_id(chat_id))
     prompt_request = ChatPromptRequest(
         max_tokens=doc.max_tokens,
@@ -408,7 +497,7 @@ async def auto_chat(chat_id:str, dto:ConversationDto, request:Request) -> Any:
         system_message=dto.speakerInfo.actualContext,
         model_name=doc.model
     )
-    return StreamingResponse(llm_stream(prompt_request=prompt_request, request=request, username=dto.speakerInfo.charName, botname=dto.botInfo.charName), media_type="text/event-stream")
+    return StreamingResponse(llm_stream(prompt_request=prompt_request, username=dto.speakerInfo.charName, botname=dto.botInfo.charName), media_type="text/event-stream")
 
 @router.post(
     "/on-unreal-stream-finished",
@@ -417,7 +506,7 @@ async def auto_chat(chat_id:str, dto:ConversationDto, request:Request) -> Any:
         200: {"description" : "Succesful response with the recent chat history"}
     }
 )
-async def on_unreal_stream_finished(update_request: UnrealChatUpdateRequest, request:Request) -> UnrealStreamEnd:
+async def on_unreal_stream_finished(update_request: UnrealChatUpdateRequest, request: Request) -> UnrealStreamEnd:
     print("-- UNREAL UPDATE REQUEST --",update_request)
     stream_update: StreamEndResponse = await on_stream_finished(update_request=SessionHistoryUpdateRequest(sessionId=update_request.sessionId, chatHistory=unreal_messages_to_history(update_request.chatHistory)), request=request)
     print("-- STREAM UPDATE --", stream_update)
@@ -433,17 +522,17 @@ async def on_unreal_stream_finished(update_request: UnrealChatUpdateRequest, req
 )
 async def on_output_action_acknowledge(chat_id:str, dto: ActionAcknowledgeDto, request:Request) -> ActionOutcomeDto:
     actions_handler = OutputActionsHandler()
-    action_outcome = ActionResultOutcome(user_msg="[..]")
+    action_outcome = ActionResultOutcome(user_msg="[...]")
     if dto.isUserRejection:
         #prompt_request.system_message =f"{event_tags.user_ctx}: {chat.tag.split("-")[1]} has rejected the {dto.action} proposal."
-        action_outcome = await actions_handler.handle_user_reject(action=dto.action, chat_id=chat_id, user_message=dto.userMessage, llm_provider=request.app.model_provider)
+        action_outcome = await actions_handler.handle_user_reject(action=dto.action, chat_id=chat_id, user_message=dto.userMessage, llm_provider=get_llm_provider())
     else:
         #prompt_request.system_message =f"{event_tags.user_ctx}: {chat.tag.split("-")[1]} has accepted the {dto.action} proposal."
         action_outcome = await actions_handler.handle_user_acknowledge(
             action=dto.action,
             chat_id=chat_id,
             user_message=dto.userMessage, 
-            llm_provider=request.app.model_provider)
+            llm_provider=get_llm_provider())
     logger.info("-- ON ACTION OUTCOME --")
     print(action_outcome)
     return ActionOutcomeDto(action=dto.action, 
@@ -461,7 +550,7 @@ async def on_output_action_acknowledge(chat_id:str, dto: ActionAcknowledgeDto, r
 )
 async def on_ending_action_submit(chat_id:str, dto: ActionAcknowledgeDto, request:Request, bgtsk: BackgroundTasks):
     print(f":: ON ENDING ACTION REQ :: ", dto)
-    chats_repo = ChatPromptsRepository(praise_db_name)
+    chats_repo = ChatPromptsRepository(get_request_db_name(request))
     chat = ChatPromptDoc.model_validate(await chats_repo.get_by_id(chat_id))
     actions_handler = OutputActionsHandler()
     action_outcome = ActionResultOutcome(user_msg="[...]")
@@ -470,13 +559,13 @@ async def on_ending_action_submit(chat_id:str, dto: ActionAcknowledgeDto, reques
             action=dto.action,
             chat_id=chat_id,
             user_message=dto.userMessage, 
-            llm_provider=request.app.model_provider)
+            llm_provider=get_llm_provider())
     else:    
         action_outcome= await actions_handler.handle_user_acknowledge(
             action=dto.action,
             chat_id=chat_id,
             user_message=dto.userMessage, 
-            llm_provider=request.app.model_provider)
+            llm_provider=get_llm_provider())
     skip_chat_end:bool = True if "<<SKIP_CHAT_END>>" in action_outcome.user_message else False
     if skip_chat_end:
       action_outcome.user_message = action_outcome.user_message.replace("<<SKIP_CHAT_END>>", "")
@@ -490,7 +579,7 @@ async def on_ending_action_submit(chat_id:str, dto: ActionAcknowledgeDto, reques
         else:
             logger.info(f"-- Skipping CHAT_END process for action: {dto.action}. Next interaction with this bot will continue with the current conversation --")
     else:
-        raise HTTPException(status_code=500, detail="An error has occured while appending the user acknowledge message to the chat document. Aborting 'end-chat' process...  ")
+        raise HTTPLoggedException(status_code=500, detail="An error has occured while appending the user acknowledge message to the chat document. Aborting 'end-chat' process...  ")
     
 @router.get(
     "/{chat_id}/end-conversation",
@@ -501,8 +590,8 @@ async def on_ending_action_submit(chat_id:str, dto: ActionAcknowledgeDto, reques
 )
 async def end_conversation(chat_id:str, request:Request):
     print("-- ENDING CONVERSATION --")
-    memo_service = MemoMgmtService()
-    memory = await memo_service.update_longmemo(chat_id=chat_id,model_provider=request.app.model_provider)
+    memo_service = MemoMgmtService(get_request_db_name(request))
+    memory = await memo_service.update_longmemo(chat_id=chat_id,model_provider=get_llm_provider())
     if memory is None:
         raise HTTPLoggedException(status_code=500, detail="An error has occured while summarizing the conversation")
     return memory
@@ -516,8 +605,8 @@ async def end_conversation(chat_id:str, request:Request):
 )
 async def on_llm_settings_update(chat_id:str, dto: UpdateModelSettingsRequest, request:Request):
     print("-- ON LLM SETTINGS UPDATE --", dto)
-    repo = ChatPromptsRepository(praise_db_name)
-    details_repo = ChatDetailsRepository(praise_db_name)
+    repo = ChatPromptsRepository(get_request_db_name(request))
+    details_repo = ChatDetailsRepository(get_request_db_name(request))
     doc = ChatPromptDoc.model_validate(await repo.get_by_id(chat_id))
     details = ChatDetailsDoc.model_validate(await details_repo.get(varname="chat_doc_id", value=chat_id))
     should_update_doc: bool = False
@@ -537,8 +626,9 @@ async def on_llm_settings_update(chat_id:str, dto: UpdateModelSettingsRequest, r
             tag=event_tags.llm_update, 
             message=f"TEMP - {dto.temperature}"))
         should_update_doc = True
+    llm_provider: Ollama_Provider = get_llm_provider()
     if dto.model_name is not None and dto.model_name != doc.model :
-        if dto.model_name in request.app.model_provider.available_models():
+        if dto.model_name in llm_provider.available_models():
             doc.model = dto.model_name
             details.chat_events.append(ChatEvent(
                 category=chat_event_cats.to_string(chat_event_cats.llm),
@@ -551,26 +641,27 @@ async def on_llm_settings_update(chat_id:str, dto: UpdateModelSettingsRequest, r
         await repo.update(doc.id, doc)
         await details_repo.update(details.id, details)
 
-def llm_stream(prompt_request:ChatPromptRequest, request:Request, username:str = "Player", botname:str = "Non-Player"):
+def llm_stream(prompt_request:ChatPromptRequest, username:str = "Player", botname:str = "Non-Player"):
     logger.info("-- ollama praise chat stream req --")
     if prompt_request.system_message and prompt_request.system_message != "":
         prompt_request.chat_history.append({"context": prompt_request.system_message.strip()})
     prompt_request.chat_history.append({"user": prompt_request.message})
-    prompt = request.app.model_provider.chat_history_to_template(chat_history=prompt_request.chat_history, assistant_guidance_token=f"### {botname}:", template_key="praise")
+    llm_provider: Ollama_Provider = get_llm_provider()
+    prompt = llm_provider.chat_history_to_template(chat_history=prompt_request.chat_history, assistant_guidance_token=f"### {botname}:", template_key="praise")
     prompt = prompt.replace("<<USERNAME>>", username)
     prompt = prompt.replace("<<BOTNAME>>", botname)
     #TODO / CHECK: replace prompt keys w/char_names:
     # request.app.model_provider.replace_final_prompt_keys(prompt, { current_key : new_key }) <- provider.templates[template_key]
     logger.warning(f"ON STREAM >> REQ MODEL {prompt_request.model_name}")
-    llm = request.app.model_provider.current_integration().fresh_model_instance(model=prompt_request.model_name,temperature=prompt_request.temperature, max_tokens=prompt_request.max_tokens, ctx_len=len(prompt) + 300 if len(prompt) <= 10000 else 10000)
+    llm = llm_provider.fresh_model_instance(model=prompt_request.model_name, config=Ollama_Config().get_settings_preset(), ctx_len=len(prompt) + ctx_len_offset if len(prompt) <= max_ctx_len else max_ctx_len)
     logger.info("-- FINAL PROMPT --")
     print(prompt)
-    response = llm.stream(prompt, temperature=prompt_request.temperature, num_predict=prompt_request.max_tokens)
+    response = llm.stream(prompt)
     prev_token = ""
     for chunk in response:
         print(chunk)
         pair = prev_token + chunk.content
-        if pair in request.app.model_provider.stopping_tokens():
+        if pair in llm_provider.stopping_tokens():
             return
         prev_token = chunk.content
         yield str(chunk.content)

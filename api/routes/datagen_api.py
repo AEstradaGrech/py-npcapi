@@ -28,7 +28,7 @@ async def generate_chat(request: ChatReplicaRequest):
     
     {request.system_message}
     """
-    model = ChatOllama(model=request.model_name, temperature=request.temperature)
+    model = ChatOllama(model=request.model_name)
     memoria_persistente = MemorySaver()
     agent = create_agent(
         model=model,

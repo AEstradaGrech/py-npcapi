@@ -44,7 +44,7 @@ class FightActionResult(EndChatResult):
         analysis_text = analysis_text.replace("<<USERNAME>>", username)
         analysis_text = analysis_text.replace("<<BOTNAME>>", botname)
         print("-- FIGHT >> ANALYSIS TEMPLATED TEXT --", analysis_text)
-        llm = llm_provider.current_integration().fresh_model_instance(model="llama3.1-lexi-v2", temperature=0.5, max_tokens=450, ctx_len=get_ctx_num_for_text(analysis_text))
+        llm = llm_provider.current_integration().fresh_model_instance(model=llm_provider.current_model(), config=llm_provider.config().get_settings_preset("analyis"), ctx_len=get_ctx_num_for_text(analysis_text))
         analysis_llm = llm.with_structured_output(schema=FightEventAnalysis)
         analysis_result:FightEventAnalysis = analysis_llm.invoke(analysis_text)
         print("-- FIGHT >> ANALYSIS RESULT --", analysis_result)

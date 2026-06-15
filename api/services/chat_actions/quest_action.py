@@ -3,12 +3,12 @@ from typing import List, override
 from api.infrastructure.llm.llm_provider import LLM_Provider
 from api.infrastructure.models.reasoning_schemas import QuestEventAnalysis
 from api.services.chat_actions.action_result import ActionResultOutcome, ChatInteractionResult
-from api.utils.helpers import HTTPLoggedException, replace_values
+from api.utils.helpers import HTTPLoggedException, get_ctx_num_for_text, replace_values
 from api.utils.statics import sys_message_types
 
 class QuestActionResult(ChatInteractionResult):
-    def __init__(self, reason:str):
-        super().__init__(action="QUEST", reason=reason)
+    def __init__(self, reason:str, repos_db=None):
+        super().__init__(action="QUEST", reason=reason, repos_db=repos_db)
         self.action_sysmsg_id = sys_message_types.quest_gen_template
         self.default_acknowledge_msg = "Count me in, I'll do my best."
         self.default_rejection_msg = "Sorry, I have no time for that right now."
@@ -52,10 +52,11 @@ class QuestActionResult(ChatInteractionResult):
         return ActionResultOutcome(user_msg=user_reject_message, is_ending_response=True, ctx_upd=instruction_update)
 
     def on_generated_quest(self, is_reject:bool, summarization_msgs:List[dict[str,str]], llm_provider: LLM_Provider, username:str = "Player Character", botname:str="Non-Player Character") -> dict[str,str]: 
-        llm = llm_provider.current_integration().fresh_model_instance(model="llama3.1", temperature=0.1, max_tokens=600, ctx_len=4096)
-        analysis_llm = llm.with_structured_output(schema=QuestEventAnalysis)     
         analysis_text = llm_provider.chat_history_to_template(chat_history=summarization_msgs, exclude_sys_message=False, exclude_sys_updates=False, template_key="praise")
         analysis_text = analysis_text.replace("<<USERNAME>>", username).replace("<<BOTNAME>>", botname)       
+        llm = llm_provider.fresh_model_instance(model=llm_provider.current_model(), config=llm_provider.config().get_settings_preset("analyis"), ctx_len=get_ctx_num_for_text(analysis_text))
+        analysis_llm = llm.with_structured_output(schema=QuestEventAnalysis)     
+        
         analysis_result:QuestEventAnalysis = analysis_llm.invoke(analysis_text)
         print("############ QUEST ANAL RESULT ################", analysis_result)
         stringy_plan = ""

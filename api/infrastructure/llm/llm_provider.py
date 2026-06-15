@@ -4,12 +4,12 @@ from typing import Any, List
 from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
 
-from api.infrastructure.llm.llm_config import LLM_Config
+from api.infrastructure.llm.settings.llm_config import LLM_Config
+from api.infrastructure.llm.settings.ollama_config import Ollama_Config
 from api.infrastructure.models.reasoning_schemas import ChatMoodAnalysis
-from api.models.prompting_schemas import ChatPromptRequest
 
-from api.utils.helpers import get_history_messages_by_key
-from api.utils.statics import chat_summary_template_tag, summary_role_tags
+from api.models.prompting_schemas import ChatPromptRequest
+from api.utils.statics import chat_summary_template_tag, summary_role_tags, ctx_len_offset
     
 class LLM_Provider(ABC):
     did_init = False
@@ -56,11 +56,11 @@ class LLM_Provider(ABC):
         pass
     
     @abstractmethod
-    def direct_prompt(self, prompt, temperature:float = 0.7, max_tokens: int = 600, ctx_len:int = 2048) -> str:
+    def direct_prompt(self, prompt, temperature:float = 0.7, top_p: float = 0.7, max_tokens: int = 600, ctx_len:int = 4096) -> str:
         pass
 
     @abstractmethod
-    def fresh_model_instance(self, model:str = None, temperature:float = 0.7, max_tokens: int = 600, ctx_len:int = 2048) -> Any:
+    def fresh_model_instance(self, model:str, ctx_len: int = None, config: LLM_Config = None) -> Any:
         pass
     
     def settings_summary(self) -> Any:
@@ -75,6 +75,9 @@ class LLM_Provider(ABC):
             print(self._integration)
             settings["current_config"] = self.config_as_dict()
         return settings
+    
+    def stopping_tokens(self):
+        return self._model_stopping_tokens
     
     def model_config(self) -> LLM_Config:
         return self.config()
@@ -115,7 +118,7 @@ class LLM_Provider(ABC):
                 prompt_request.chat_history.append({"system" : prompt_request.system_message})
                 print(prompt_request)
         else:
-            last_sys_msg = get_history_messages_by_key(key="system", chat_history=prompt_request.chat_history, only_last_one=True)
+            last_sys_msg = self.get_history_messages_by_key(key="system", chat_history=prompt_request.chat_history, only_last_one=True)
             if len(last_sys_msg) == 0:
                 if prompt_request.system_message is None:
                     prompt_request.chat_history = self.append_default_sys_message(chat_history=prompt_request.chat_history)
@@ -136,6 +139,17 @@ class LLM_Provider(ABC):
             new_prompt = new_prompt.replace(key, new_keys[key])
         return new_prompt
 
+    def get_history_messages_by_key(key:str, chat_history: List[dict[str, str]], only_last_one: bool = False) -> List[str]:
+            df = pd.DataFrame(chat_history)
+            print("DATA FRAME", df)
+            try:
+                if only_last_one:
+                    return [df[key][df[key].notna()].tolist()[-1]]
+                else: 
+                    return df[key][df[key].notna()].tolist()
+            except:
+                return []
+            
     def chat_history_to_template(self, chat_history: List[dict[str,str]], exclude_sys_message:bool=False, exlude_sys_updates:bool=False, assistant_guidance_token:str = '', template_key = "default") -> str:
         prompt = ""
         if template_key != "default":
@@ -196,7 +210,7 @@ class LLM_Provider(ABC):
         #final_instruction = f"{final_prompt}\n{parser_instrucion}" 
         #print(final_instruction)
         final_instruction = final_prompt
-        llm = self._integration.fresh_model_instance(model="llama3.1-lexi-v2",temperature=temperature, max_tokens=max_tokens,ctx_len=len(final_instruction) + 300)
+        llm = self._integration.fresh_model_instance(model="llama3.1-lexi-v2", ctx_len=len(final_instruction) + ctx_len_offset, config=Ollama_Config().get_settings_preset("analysis"))
         summary = llm.invoke(f"{final_prompt}\n{parser_instrucion}")
         #summary = parser.invoke(response)
         #summary = self.direct_prompt(prompt=f"{final_prompt}\n{parser_instrucion}", temperature=temperature, max_tokens=max_tokens,ctx_len=ctx_len)

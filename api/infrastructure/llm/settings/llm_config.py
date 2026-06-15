@@ -1,5 +1,5 @@
 from api.models.schemas import ModelIntegrationSettingsDto
-
+from dataclasses import dataclass
 
 """
 
@@ -33,32 +33,27 @@ from api.models.schemas import ModelIntegrationSettingsDto
   especially when dealing with very large batch sizes or complex prompts. (WTF?!)
 
 """
+@dataclass
 class LLM_Config:
-    temp:           int   
+    temp:           int   = 0.7
     top_p:          float = 0.5
     top_k:          int   = 10
     n_batch:        int   = 8
-    n_predict:      int   #n_predict: Equivalent to max_tokens, exists for backwards compatibility.
-    max_tokens:     int   
+    num_ctx:        int   = 4096 #n_predict: Equivalent to max_tokens, exists for backwards compatibility.
+    max_tokens:     int   = 600
     repeat_last_n:  int   = -1
     repeat_penalty: float = 1.1
     n_threads:      int   = 6  #number of CPU processor threads to use in parallel computations
     ngl:            int   = 32 #number of NN Layers to load in the GPU
     ctx_len:        int   = 4096 #Max for LLama 8B = 4,096
-
-    
-    def __init__(self, temp=2.0, max_tokens=300, ctx_len = 4096):
-        self.temp = temp
-        self.max_tokens = max_tokens
-        self.n_predict = max_tokens
-        self.ctx_len = ctx_len
+        
 
     def map_from_request(self, req: ModelIntegrationSettingsDto):
         if req.temp is not None:
             self.temp = req.temp
         if req.max_tokens is not None:
             self.max_tokens = req.max_tokens
-            self.n_predict = req.max_tokens
+            self.num_ctx = req.max_tokens
         if req.top_k is not None:
             self.top_k = req.top_k
         if req.top_p is not None:
@@ -75,18 +70,7 @@ class LLM_Config:
             self.ngl = req.ngl
         return self
     
-    def to_dict(self):
-        return {
-            "temp": self.temp,         
-            "top_p":self.top_p,
-            "top_k": self.top_k,
-            "n_batch":self.n_batch,
-            "n_predict": self.n_predict,
-            "max_tokens": self.max_tokens,
-            "repeat_last_n": self.repeat_last_n,
-            "repeat_penalty": self.repeat_penalty,
-            "n_threads": self.n_threads,
-            "ngl": self.ngl,
-            "ctx_len": self.ctx_len 
-        }
+    def get_settings_preset(self, name:str = "default"):
+        return LLM_Config()
     
+  

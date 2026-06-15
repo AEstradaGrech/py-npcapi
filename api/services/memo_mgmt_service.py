@@ -28,6 +28,7 @@ class MemoMgmtService():
 
     def __init__(self, repos_db: str):
         self._currentDB = repos_db if repos_db is not None and repos_db != "" else default_db_name
+        self._chats_svc = ChatsMgmtService(self._currentDB)
         self._chatsRepo = ChatPromptsRepository(self._currentDB)
         self._sysRepo = SysMessagesRepository(self._currentDB)
         self._sessionsRepo = ChatSessionsRepository(self._currentDB)
@@ -35,7 +36,7 @@ class MemoMgmtService():
 
     async def update_shortmemo(self, chat: ChatPromptDoc, model_provider: LLM_Provider) -> ChatSummaryDoc | None:
         sysmsgs_repo = SysMessagesRepository(praise_db_name)
-        memos = await self.query_summaries(conditions=[QueryCondition(field="chat_collection_id", value=chat.id)])
+        memos = await self._summariesRepo.query(conditions=[QueryCondition(field="chat_collection_id", value=chat.id)])
         chat_turns = chat.messages_to_chat_history() if len(memos) == 0 else chat.messages_to_chat_history()[(len(memos)*chat_turns_to_generate_memory):len(chat.messages)]
         print("MEMO TURNS", chat_turns)
         if len(chat_turns) < chat_turns_to_generate_memory:
@@ -160,7 +161,7 @@ class MemoMgmtService():
     
     async def process_chat_mood_analysis(self, chat_id: str, attitude_label:str) -> str:
         analysis_service = MoodAnalysisService()
-        details:ChatDetailsDoc = await self.get_chat_details(chat_id=chat_id)
+        details:ChatDetailsDoc = await self._chats_svc.get_chat_details(chat_id=chat_id)
         if details is None:
             logger.warning(f"-- No chat details found for chat_id: {chat_id} - skipping chat mood transition")
             return "None"
@@ -184,7 +185,7 @@ class MemoMgmtService():
         return details.botMood #mantiene el mood en el que está
 
     async def handle_chat_assistant_memo(self, chat_id:str, recent_history:dict[str,str], with_short_memos:bool = True) -> dict[str,str]:
-        details = await self.get_chat_details(chat_id=chat_id)
+        details = await self._chats_svc.get_chat_details(chat_id=chat_id)
         if details is None:
             raise HTTPLoggedException(status_code=500, detail=f"CHAT MEMORY SETUP ERROR >> No ChatDetailsDoc found for chat: {chat_id}. Ongoing chats MUST have an associated Details doc")
         if details.botMemory.get("initial-memo") is not None: # Añade RECEN & LONG (if any) formados OnInit (chats previos)
@@ -214,7 +215,7 @@ class MemoMgmtService():
         final_history = [history[0]]
         if from_bot_memo:
             print("-- CHECKING BOT MEMORY CACHE SHORT MEMOS --")
-            details = await self.get_chat_details(chat_id=chat_id)
+            details = await self._chats_svc.get_chat_details(chat_id=chat_id)
             if details is not None and details.botMemory.get("chat-memo") is not None:
                 memo_cache = details.botMemory["chat-memo"]
                 if memo_cache != "":

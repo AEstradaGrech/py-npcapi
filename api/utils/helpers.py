@@ -5,6 +5,8 @@ from PIL import Image
 from fastapi import HTTPException, Request
 from loguru import logger
 import pandas as pd
+from api.infrastructure.llm.llm_provider import LLM_Provider
+from api.infrastructure.llm.ollama_provider import Ollama_Provider
 from api.infrastructure.models.db_schemas import ChatDetailsDoc
 from api.models.prompting_schemas import ChatMessageDto, SessionHistoryUpdateRequest, UnrealChatUpdateRequest
 from api.utils.statics import max_ctx_len, default_db_name, praise_db_name
@@ -52,17 +54,6 @@ def join_strings(strings: List[str], separator:str=",", prefix:str="", substring
     for string in strings:
         result += f"{prefix}{string}{separator}"
     return result
-
-def get_history_messages_by_key(key:str, chat_history: List[dict[str, str]], only_last_one: bool = False) -> List[str]:
-        df = pd.DataFrame(chat_history)
-        print("DATA FRAME", df)
-        try:
-            if only_last_one:
-                return [df[key][df[key].notna()].tolist()[-1]]
-            else: 
-                return df[key][df[key].notna()].tolist()
-        except:
-            return []
     
 def update_memo_cache_value(details:ChatDetailsDoc, key:str, value:str, isAppend=True):
     memo = "" if details.botMemory.get(key) is None else details.botMemory.get(key)
@@ -123,3 +114,6 @@ def replace_values(text:str, kvp:dict[str,str], tag_separators:List[str] = ["","
 def get_request_db_name(request:Request) -> str:
     client_header = request.headers.get("app-username")
     return praise_db_name if client_header is not None and "PRAISE" in client_header.upper() else default_db_name 
+
+def get_llm_provider() -> LLM_Provider:
+    return Ollama_Provider()

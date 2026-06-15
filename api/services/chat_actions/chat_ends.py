@@ -6,8 +6,8 @@ from api.utils.statics import default_chat_history_length, sys_message_types
 
 class UserEndReqResult(ActionResult):
     #event msg
-    def __init__(self, action:str, reason:str):
-        super().__init__(action=action, reason=reason)
+    def __init__(self, action:str, reason:str, repos_db:str = None):
+        super().__init__(action=action, reason=reason, repos_db=repos_db)
         self.is_chat_ending = False
         self.default_acknowledge_msg = "I have to go now, bye."
         self.end_chat_event = "any"
@@ -23,8 +23,8 @@ class UserEndReqResult(ActionResult):
     
 class EndChatResult(ActionResult):
     #event msg
-    def __init__(self, action:str, reason:str):
-        super().__init__(action=action, reason=reason)
+    def __init__(self, action:str, reason:str, repos_db:str = None):
+        super().__init__(action=action, reason=reason, repos_db=repos_db)
         self.is_chat_ending = True
         self.default_acknowledge_msg = "[...]"
         self.end_chat_event = "any"

@@ -10,10 +10,11 @@ from api.infrastructure.models.db_schemas import ChatPromptDoc, ChatSummaryDoc, 
 from api.infrastructure.repositories.mongo.chat_prompts import ChatPromptsRepository, ChatSessionsRepository
 from api.infrastructure.repositories.mongo.chat_summaries_repo import ChatSummariesRepository
 from api.infrastructure.repositories.mongo.sysmsgs_repo import SysMessagesRepository
+from api.mappers.mgmt_mappers import toSystemMessageDto
 from api.models.schemas import ChatSummaryDto, SummaryDto, SystemMessageDto
 from api.models.summary_schemas import ChatSummaryRequest, ChatSummaryResponse
 from api.utils.statics import sys_message_types
-from api.utils.helpers import get_request_db_name
+from api.utils.helpers import get_llm_provider, get_request_db_name
 
 
 router = APIRouter(prefix="/mgmt/summaries")
@@ -45,7 +46,7 @@ async def get_summarization_messages_containing_tag(tag:str, request: Request) -
     docs = await repo.get_many(varname="type",value=sys_message_types.summary_template) if tag == "_" else await repo.get_many_by_type_containing_tag(type=sys_message_types.summary_template, tag=tag)
     logger.info("-- docs retrieved --")
     print(docs)
-    return [SystemMessageDoc.model_validate(doc) for doc in docs]
+    return [toSystemMessageDto(doc) for doc in docs]
 
 @router.post(
     "/summarize/session",
@@ -66,7 +67,7 @@ async def summarize_session_chat(req: ChatSummaryRequest, request: Request) -> C
     chat_history = session_chats.messages_to_chat_history()
     temp = req.temperature
     max_tokens = req.maxTokens
-    summary_response = request.app.model_provider.chat_summary(chat_history=chat_history, sys_msg=sys_msg.message if req.sysMessage is None else req.sysMessage,temperature=temp, max_tokens=max_tokens, ctx_len=req.contextLength, exclude_sys_updates=req.excludeSystemUpdates)
+    summary_response = get_llm_provider().chat_summary(chat_history=chat_history, sys_msg=sys_msg.message if req.sysMessage is None else req.sysMessage,temperature=temp, max_tokens=max_tokens, ctx_len=req.contextLength, exclude_sys_updates=req.excludeSystemUpdates)
     print('-- on summary completed --', summary_response[1])
     return ChatSummaryResponse(sessionId=req.sessionId, chatId=session_chats.id, prompt=summary_response[0], summary=summary_response[1])
 

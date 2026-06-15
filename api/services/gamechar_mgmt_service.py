@@ -1,11 +1,11 @@
-
-from random import random
+import random
 from typing import List
 
 from langchain_core.output_parsers import PydanticOutputParser
 from loguru import logger
 
 from api.infrastructure.llm.llm_provider import LLM_Provider
+from api.infrastructure.llm.settings.ollama_config import Ollama_Config
 from api.infrastructure.models.char_db_schemas import CharacterPersonalityDoc, CharacterRoleDoc, CharacterTraitDoc
 from api.infrastructure.models.db_schemas import SystemMessageDoc
 from api.infrastructure.repositories.mongo.chat_prompts import GameCharDoc
@@ -14,7 +14,7 @@ from api.infrastructure.repositories.mongo.sysmsgs_repo import SysMessagesReposi
 from api.models.character_schemas import CharProfileElementDto, CharacterTemplateDto, FullPraiseCharDto
 from api.models.prompting_schemas import GenerateCharacterRequest
 from api.utils.helpers import HTTPLoggedException
-from api.utils.statics import default_db_name, praise_db_name, sys_message_types, char_profile_elem_types
+from api.utils.statics import default_db_name, praise_db_name, sys_message_types, char_profile_elem_types, ctx_len_offset
 
 class CharactersMgmtService:
     _charsRepo: GameCharsRepository = None
@@ -239,7 +239,7 @@ class CharactersMgmtService:
         print(f"{instruction}\n\n{parser_instruction}")
         for i in range(0,3):
             try:
-                llm = llm_provider.current_integration().fresh_model_instance(model="hermes3", temperature=1.0, max_tokens=600, ctx_len=len(instruction) + len(parser_instruction) + 200)
+                llm = llm_provider.fresh_model_instance(model=llm_provider.current_model(), config=Ollama_Config().get_settings_preset("characters"), ctx_len=len(instruction) + len(parser_instruction) + ctx_len_offset)
                 llm_response = llm.invoke(f"{instruction}\n\n{parser_instruction}")
                 char_profile = parser.invoke(llm_response)
                 logger.warning(">> ON LLM RESPONSE PARSED")
@@ -247,6 +247,7 @@ class CharactersMgmtService:
                 break
             except Exception as e:
                 logger.warning(f" ERROR WHILE GENERATING CHAR >> e: {e}")
+                raise HTTPLoggedException(status_code=500, detail=f"{e}")
 
         praise_character.name = char_profile.name
         praise_character.age = char_profile.age

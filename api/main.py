@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes.gameagent_api import router as agents_router 
 from api.routes.datagen_api import router as datagen_router 
-from api.routes.chats_mgmt_api import router as chatsmgmt_router 
+from api.routes.npc_mgmt_api import router as npc_mgmt_router
+from api.routes.chats_mgmt_api import router as chatsmgmt_router
+from api.routes.sessions_mgmt_api import router as sessionsmgmt_router
 from api.routes.praisebotapi import router as praisebot_router
 from api.routes.summaries_api import router as summaries_router 
 from api.routes.sysmsgs_api import router as sysmsgs_router  
@@ -26,7 +28,9 @@ app.add_middleware(
 
 app.include_router(agents_router)
 app.include_router(datagen_router)
+app.include_router(npc_mgmt_router)
 app.include_router(chatsmgmt_router)
+app.include_router(sessionsmgmt_router)
 app.include_router(praisebot_router)
 app.include_router(summaries_router)
 app.include_router(sysmsgs_router)
