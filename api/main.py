@@ -10,7 +10,7 @@ from api.routes.praisebotapi import router as praisebot_router
 from api.routes.summaries_api import router as summaries_router 
 from api.routes.sysmsgs_api import router as sysmsgs_router  
 from api.routes.devtests_api import router as devtests_router  
-
+from api.routes.api_mgmt_api import router as apimgmt_router
 origins = [
     "http://localhost",
     "http://localhost:4200",
@@ -36,3 +36,4 @@ app.include_router(summaries_router)
 app.include_router(sysmsgs_router)
 app.include_router(agents_router)
 app.include_router(devtests_router)
+app.include_router(apimgmt_router)

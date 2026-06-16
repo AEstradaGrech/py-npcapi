@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Any, List, Optional
-
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -48,21 +47,25 @@ class ChatPromptDoc(BaseModel):
         return chat_history
     
     def messages_as_recent_history(self, include_sys_msg:bool = True) -> List[dict[str,str]]:
-        if len(self.messages) > default_chat_history_length:
-            history = self.messages_to_chat_history()
-            recent_msgs = history[len(history)-(default_chat_history_length):len(history)]
+        history = self.messages_to_chat_history()
+        if len(history) > default_chat_history_length:
+            recent_msgs = history[-default_chat_history_length:]
+            print("RECENT MESSAGE", recent_msgs)
             remaining_msgs = history[:-default_chat_history_length]
-            if include_sys_msg:
-                final = [remaining_msgs.tolist()[0]]
+            print("REMAINING MSGS", remaining_msgs)
+            if include_sys_msg and remaining_msgs:
+                final = [remaining_msgs[0]]
                 final.extend(recent_msgs)
+                print("FINAL HISTORY", final)
             else:
                 final = recent_msgs
+                print("FINAL HISTORY", final)
             return final
         else:
             if include_sys_msg:
-                return self.messages_to_chat_history()
-            else: 
-                return self.messages_to_chat_history()[1:]
+                return history
+            else:
+                return history[1:]
             
     #OVERRIDES the whole array with the new chat_history
     def chat_history_to_messages(self, chat_history) -> List[ChatMessage]:

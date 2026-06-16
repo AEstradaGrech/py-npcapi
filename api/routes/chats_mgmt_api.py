@@ -4,11 +4,11 @@ from typing import List
 from bson import ObjectId
 from loguru import logger
 
-from api.infrastructure.models.db_schemas import ChatDocSave, ChatPromptDoc, ChatSummaryDoc, SessionDoc
-from api.infrastructure.repositories.mongo.chat_prompts import ChatPromptsRepository, ChatSessionsRepository
+from api.infrastructure.models.db_schemas import ChatDetailsDoc, ChatDocSave, ChatPromptDoc, ChatSummaryDoc, SessionDoc
+from api.infrastructure.repositories.mongo.chat_prompts import ChatDetailsRepository, ChatPromptsRepository, ChatSessionsRepository
 from api.infrastructure.repositories.mongo.chat_summaries_repo import ChatSummariesRepository
 from api.mappers.prompting_mappers import chatDocToDto, sessionDocToDto
-from api.models.prompting_schemas import ChatDocDto, SessionDto, SessionHistoryUpdateRequest, SessionRetagRequest
+from api.models.prompting_schemas import BotInfoDto, ChatDocDto, ChatMessageDto, ConversationDto, SessionHistoryUpdateRequest, SpeakerInfoDto, UnrealChatHistory
 
 from fastapi import APIRouter, Request
 
@@ -59,6 +59,45 @@ async def save_chat(dto: ChatDocDto, request: Request) -> ChatDocDto:
   insert = ChatPromptDoc()
   insert.map_from_dto(dto)
   return chatDocToDto(await repo.create(insert))
+
+
+@router.get(
+    "/{username}/chat-history/{tag}",
+    summary="Returns a reduced ChatDoc dto with a typed collection of ChatMessages to be parsed by UE5",
+    responses={
+        200: {"description" : "Succesful response with the recent chat history"}
+    }
+)
+async def get_user_session_chat_history(tag:str, username:str) -> UnrealChatHistory:
+    repo = ChatPromptsRepository(db_name=praise_db_name)
+    chat_records = await repo.query([QueryCondition(field="username", value=username), QueryCondition(field="tag", value=tag)])
+    if len(chat_records) == 0:
+        return UnrealChatHistory(sessionTag=tag)
+    doc = ChatPromptDoc.model_validate(chat_records[0])
+    chat_history = []
+    for message in doc.messages:
+        chat_history.append(ChatMessageDto(role=message.role, message=message.message))
+    return UnrealChatHistory(chatId=doc.id, sessionTag=tag, history=chat_history)
+
+@router.get(
+    "/chat/history/{chat_id}/unreal",
+    summary="Returns a reduced ChatDoc dto with a typed collection of ChatMessages to be parsed by UE5",
+    responses={
+        200: {"description" : "Succesful response with the recent chat history"}
+    }
+)
+async def get_session_chat_history_by_id(chat_id:str) -> UnrealChatHistory:
+    repo = ChatPromptsRepository(db_name=praise_db_name)
+    chat_record = await repo.get_by_id(chat_id)
+    if chat_record is None:
+        return UnrealChatHistory()
+    doc = ChatPromptDoc.model_validate(chat_record)
+    chat_history = []
+    for message in doc.messages:
+        chat_history.append(ChatMessageDto(role=message.role, message=message.message))
+    return UnrealChatHistory(chatId=doc.id, sessionTag=doc.tag, history=chat_history)
+
+
 
 @router.post(
     "/document-save",
@@ -265,3 +304,39 @@ async def chat_reassing(id:str, session_id:str, request:Request) -> ChatDocDto:
     if len(former_session_chats) <= 0:
         await sessions_repo.delete_by_id(former_session.id)    
     return chat_doc
+
+@router.get(
+    "/chat/details/{chat_id}",
+    summary="Returns a ConversationInitDto with the info about the initial chatConditions (speakers info, zone info, llm & params)",
+    responses={
+        200:{"description": "Successful response with the ConversationInitDto"}
+    }
+)
+async def get_chat_details_by_chat_id(chat_id:str) -> ConversationDto:
+    chats_repo = ChatPromptsRepository(praise_db_name)
+    details_repo = ChatDetailsRepository(praise_db_name)
+    chat = ChatPromptDoc.model_validate(await chats_repo.get_by_id(chat_id))
+    details =ChatDetailsDoc.model_validate(await details_repo.get(varname="chat_doc_id", value=chat_id))
+    return ConversationDto(
+        zoneName=details.zoneName, 
+        zoneActualContext=details.zoneContext, 
+        speakerInfo=SpeakerInfoDto(
+            charName=details.usercharName,
+            charRole=details.usercharRole,
+            factionName=details.userfaction,
+            actualContext=details.usercharContext
+        ),
+        botInfo=BotInfoDto(
+            charName=details.botcharName,
+            charRole=details.botcharRole,
+            factionName=details.botfaction,
+            actualContext=details.botcharContext,
+            personalities=details.botPersonalities,
+            traits=details.botTraits,
+            mood=details.botMood
+        ),
+        userMessage="",
+        model=chat.model,
+        maxTokens=chat.max_tokens,
+        temperature=chat.temperature
+    )

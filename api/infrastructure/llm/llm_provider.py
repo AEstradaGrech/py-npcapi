@@ -12,7 +12,7 @@ from api.models.prompting_schemas import ChatPromptRequest
 from api.utils.statics import chat_summary_template_tag, summary_role_tags, ctx_len_offset
     
 class LLM_Provider(ABC):
-    did_init = False
+   
     display_name = "unset"
     _use_chat_template:bool = True
     _model_name:str = None
@@ -45,9 +45,7 @@ class LLM_Provider(ABC):
     }
 
     def __init__(self):
-        self._model = None
         self._model_name = None
-        self.did_init = False
         self._available_models = []
 
     #expects a dto with a setted up chat_history PODRIA AÑADIR EL SETUP EN BASE_MTHD Y NO HACERLO ABSTRACTO
@@ -65,15 +63,11 @@ class LLM_Provider(ABC):
     
     def settings_summary(self) -> Any:
         settings = {
-            "initialized":self.did_init,
-            "current_model": self._model_name,
+            "current_model": self._model_name if self._model_name is not None else self.available_models()[0],
             "current_provider": self.display_name,
             "available_models": self.available_models(),
-            "current_config":{}
+            "current_config" : self.config()
         }
-        if self.did_init:
-            print(self._integration)
-            settings["current_config"] = self.config_as_dict()
         return settings
     
     def stopping_tokens(self):
@@ -150,7 +144,7 @@ class LLM_Provider(ABC):
             except:
                 return []
             
-    def chat_history_to_template(self, chat_history: List[dict[str,str]], exclude_sys_message:bool=False, exlude_sys_updates:bool=False, assistant_guidance_token:str = '', template_key = "default") -> str:
+    def chat_history_to_template(self, chat_history: List[dict[str,str]], exclude_sys_message:bool=False, exclude_sys_updates:bool=False, assistant_guidance_token:str = '', template_key = "default") -> str:
         prompt = ""
         if template_key != "default":
             if template_key not in self._model_prompt_templates.keys():
@@ -169,7 +163,7 @@ class LLM_Provider(ABC):
                     if exclude_sys_message == False:                       
                         prompt += (self._model_prompt_templates[template_key][message_key] + "\n" + (kvp[message_key] + "\n"))
                 case "context":
-                    if exlude_sys_updates == False:
+                    if exclude_sys_updates == False:
                         #TODO [ctx-update-env] <- actualizacion sobre entorno conversacion, (en principio no son relevantes para otros chats. no persisten)
                         #     [ctx-update-action] <- actualizacion cosas que HACEN (objetos que muestra, tiran, guardan) <- diferenciar acciones que persisten (obtiene objeto, porta X VS personaje recibe guantazo)
                         #     [ctx-update-mood] <- actualizacion ESTADO personajes (se añade a proximos sys_prompts o al actual)
@@ -184,15 +178,12 @@ class LLM_Provider(ABC):
             logger.info("-- adding guidance token :" + assistant_guidance_token)
         return prompt
     
-    def config_as_dict(self) -> Any:
-        return self._config.to_dict()
-    
     def config(self) -> LLM_Config:
         return self._config
     
-    def chat_summary(self, chat_history: List[dict[str,str]], sys_msg:str, temperature:float = 0.5, max_tokens:int = 800, ctx_len:int = 4096,exclude_sys_msg:bool = True, exclude_sys_updates:bool = True) -> (str, str):
+    def chat_summary(self, chat_history: List[dict[str,str]], sys_msg:str,exclude_sys_msg:bool = True, exclude_sys_updates:bool = True) -> (str, str):
         prompt = self.chat_history_to_template(chat_history=chat_history, exclude_sys_message=exclude_sys_msg, exclude_sys_updates=exclude_sys_updates) 
-        model_prompt_template = self.get_prompt_template(self._current_model)
+        model_prompt_template = self.get_prompt_template(self._model_name)
         processed_prompt = prompt.replace(model_prompt_template["system"], "-role=" + summary_role_tags["system"]) #
         processed_prompt = processed_prompt.replace(model_prompt_template["assistant"], "-role=" + summary_role_tags["assistant"]) # TODO: + (CharName)
         processed_prompt = processed_prompt.replace(model_prompt_template["user"], "-role="+summary_role_tags["user"]) #TODO: + (CharName)
@@ -210,7 +201,7 @@ class LLM_Provider(ABC):
         #final_instruction = f"{final_prompt}\n{parser_instrucion}" 
         #print(final_instruction)
         final_instruction = final_prompt
-        llm = self._integration.fresh_model_instance(model="llama3.1-lexi-v2", ctx_len=len(final_instruction) + ctx_len_offset, config=Ollama_Config().get_settings_preset("analysis"))
+        llm = self.fresh_model_instance(model="llama3.1-lexi-v2", ctx_len=len(final_instruction) + ctx_len_offset, config=Ollama_Config().get_settings_preset("analysis"))
         summary = llm.invoke(f"{final_prompt}\n{parser_instrucion}")
         #summary = parser.invoke(response)
         #summary = self.direct_prompt(prompt=f"{final_prompt}\n{parser_instrucion}", temperature=temperature, max_tokens=max_tokens,ctx_len=ctx_len)

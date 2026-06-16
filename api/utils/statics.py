@@ -181,7 +181,7 @@ class CharProfileElementType:
     
 char_profile_elem_types: CharProfileElementType = CharProfileElementType()
 
-default_praisebot_actions = ["KEEP_TALKING","STOP_TALKING"]
+default_praisebot_actions = ["STOP_TALKING"]
 
 chat_moods = ["HOSTILE", "UNFRIENDLY", "NEUTRAL", "FRIENDLY", "BELOVED"]
 

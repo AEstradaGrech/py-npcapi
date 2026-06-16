@@ -1,5 +1,6 @@
 
 from datetime import datetime
+from typing import List
 
 from bson import ObjectId
 from loguru import logger
@@ -49,7 +50,7 @@ class MemoMgmtService():
         for turn in chat_turns[1 if len(chat_turns) == 0 else 0:len(chat_turns)]:
             final_history.append(turn)
         print("-- ON GENERATE MEMORY - FINAL HISTORY --", final_history)
-        memory = model_provider.chat_summary(sys_msg=summarization_doc.message, chat_history=final_history, temperature=0.5, max_tokens=450, exclude_sys_updates=False)
+        memory = model_provider.chat_summary(sys_msg=summarization_doc.message, chat_history=final_history, exclude_sys_updates=False)
         # TODO: SentenceTransformers -> Generate Embedding w/final_history -> add ChatSummaryDoc field
         # usar SpaCy para detectar Personas Lugares etc <- si encuentran en user prompt -> se usa RAG w/memo embeddings [similarity_threshold!!!]
         summary_id = ObjectId()
@@ -250,4 +251,18 @@ class MemoMgmtService():
         userchar_text = f"\n\n{event_tags.user_ctx}: Speaker type = PLAYER\n- Player-Character Name: {details.usercharName}\n- Player-Character Role:{details.usercharRole}\n- Player-Character Faction:{details.userfaction}"
         text += userchar_text
         return text
+    
+    async def create_summary(self, doc:ChatSummaryDoc) -> ChatSummaryDoc:
+        repo = ChatSummariesRepository(self._currentDB)
+        return ChatSummaryDoc.model_validate(await repo.create(doc))
+    
+    async def update_summary(self, doc:ChatSummaryDoc) -> ChatSummaryDoc:
+        repo = ChatSummariesRepository(self._currentDB)
+        await repo.update(doc.id, doc)
+        return ChatSummaryDoc.model_validate(doc)
+    
+    async def query_summaries(self, conditions: List[QueryCondition]) -> List[ChatSummaryDoc]:
+        repo = ChatSummariesRepository(self._currentDB)
+        docs = await repo.query(conditions=conditions)
+        return [ChatSummaryDoc.model_validate(doc) for doc in docs] if len(docs) > 0 else []
     

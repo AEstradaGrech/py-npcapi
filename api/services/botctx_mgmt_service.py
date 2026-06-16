@@ -94,7 +94,7 @@ class BotContextMgmtService:
     #devuelve el texto base con todas las secciones menos las que se cachean en Details.Memo
     
     async def get_base_instruction_CoTv2(self, dto:ConversationDto, with_char_desc:bool = True) -> dict[str,str]:
-        template_msg = SystemMessageDoc.model_validate(await self._sysRepo.get_by_type_and_tag(sys_message_types.base_template, "CoT-v2.3"))
+        template_msg = SystemMessageDoc.model_validate(await self._sysRepo.get_by_type_and_tag(sys_message_types.base_template, "CoT-v2.2.2"))
         # chat_constraints = await repo.get_many("type", sys_message_types.chat_constraints)
         # chat_rules = await repo.get_many("type", sys_message_types.chat_rules)
         world_context = SystemMessageDoc.model_validate(await self._sysRepo.get_by_type_and_tag(sys_message_types.world_context, "v1"))

@@ -28,7 +28,7 @@ class Ollama_Config(LLM_Config):
                     repeat_penalty=1.3)
             case "characters":
                 return Ollama_Config(
-                    temp=0.9, 
+                    temp=0.8, 
                     max_tokens=600, 
                     top_p=0.7, 
                     top_k=10, 
@@ -37,7 +37,7 @@ class Ollama_Config(LLM_Config):
                     mirostat_eta=0.2, 
                     mirostat_tau=4.0, 
                     repeat_last_n=-1, 
-                    repeat_penalty=1.2)
+                    repeat_penalty=1.1)
             case "chat":
                 return Ollama_Config(
                     temp=1.0, 

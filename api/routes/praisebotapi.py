@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 from bson import ObjectId
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -22,7 +22,7 @@ from api.services.chat_actions.output_actions_handler import OutputActionsHandle
 from api.services.gamechar_mgmt_service import CharactersMgmtService
 from api.services.memo_mgmt_service import MemoMgmtService
 from api.services.mood_analysis_service import MoodAnalysisService
-from api.utils.helpers import HTTPLoggedException, get_llm_provider, get_request_db_name, unreal_messages_to_history, chat_history_to_unreal
+from api.utils.helpers import HTTPLoggedException, get_ctx_num_for_text, get_llm_provider, get_request_db_name, unreal_messages_to_history, chat_history_to_unreal
 from api.utils.statics import praise_db_name, event_tags, chat_event_cats, chat_turns_to_generate_memory, sys_message_types, max_ctx_len, max_ctx_len, ctx_len_offset
 
 router = APIRouter(prefix="/praise-bot/chat")
@@ -456,7 +456,9 @@ async def on_stream_finished(update_request: SessionHistoryUpdateRequest, reques
     await chats_repo.update(chat_doc.id, chat_doc)
     print(f"-- LEN CHAT: {len(chat_doc.messages)} - TURNS TO MEMO: {chat_turns_to_generate_memory}")
     await memo_service.update_shortmemo(chat=chat_doc, model_provider=get_llm_provider())
+    logger.warning("-- ON STREAM REQUEST --")
     history = chat_doc.messages_as_recent_history(include_sys_msg=True)
+    logger.warning("-- ON HISTORY MESSAGES --", history)
     output_action_result = await actions_handler.handle_output_actions(chat=chat_doc,history=history) #TODO --> a PraiseMgmtService
     if output_action_result.is_chat_ending:
         logger.info(f"-- ON OUTPUT ACTION RESULT -- END CHAT >> REASON: {output_action_result.reason}")
@@ -473,31 +475,35 @@ async def on_stream_finished(update_request: SessionHistoryUpdateRequest, reques
                 isChatEnding=output_action_result.is_chat_ending))
 
 @router.post(
-    "/autochat/{action}",
+    "/{chat_id}/autochat/{action}/limit/{limit}",
     summary="Generates the next player prompt for a given conversation, biasing the prompt to achieve a specific output action. The prompt should carry the extra 'reason' instructions (like 'FIGHT because Faction missalignment | repeteadly insults NPC)",
     responses={
         200: {"description" : "Succesful response with the recent chat history"}
     }
 )
-async def auto_chat(chat_id:str, dto:ConversationDto, request:Request) -> Any:
+async def auto_chat(chat_id:str, action:str, limit:int, dto: ChatPromptRequest, request:Request) -> Any:
     #get llm
+    logger.warning(f"-- ON AUTOCHAT >> {chat_id} >> {action} >> {limit} --")
+    print(dto)
     sysrepo = SysMessagesRepository(get_request_db_name(request))
-    prompt = await sysrepo.get_by_type_and_tag(type=sys_message_types.base_template, tag="user-autochat")
-    llm_provider = get_llm_provider()
-    llm = llm_provider.fresh_model_instance(model=request.model_name, config=Ollama_Config().get_settings_preset("chat"), ctx_len=len(prompt) + ctx_len_offset if len(prompt) <= max_ctx_len else max_ctx_len)
-    user_msg = llm.invoke(prompt)
-    dto.speakerPrompt = user_msg
     repo = ChatPromptsRepository(get_request_db_name(request))
     doc = ChatPromptDoc.model_validate(await repo.get_by_id(chat_id))
-    prompt_request = ChatPromptRequest(
-        max_tokens=doc.max_tokens,
-        temperature=doc.temperature,
-        chat_history=doc.messages_as_recent_history(include_sys_msg=True),
-        message=dto.speakerPrompt,
-        system_message=dto.speakerInfo.actualContext,
-        model_name=doc.model
-    )
-    return StreamingResponse(llm_stream(prompt_request=prompt_request, username=dto.speakerInfo.charName, botname=dto.botInfo.charName), media_type="text/event-stream")
+    action_doc = SystemMessageDoc.model_validate(await sysrepo.get_by_type_and_tag(type=sys_message_types.output_action, tag=action))
+    names = doc.tag.split("-")
+    prompt_doc = SystemMessageDoc.model_validate(await sysrepo.get_by_type_and_tag(type=sys_message_types.base_template, tag="user-autochat-v0.0.4"))
+    history = get_llm_provider().chat_history_to_template(chat_history=doc.messages_as_recent_history(include_sys_msg=False), assistant_guidance_token=f"### {names[1]}:", template_key="praise")
+    history = history.replace("<<USERNAME>>", names[1]).replace("<<BOTNAME>>", names[0])
+    guidance_msg = dto.system_message if dto.system_message is not None and len(dto.system_message) > 0 else ""
+    prompt_msg = prompt_doc.message.replace("<<ACTION>>", action).replace("<<TURNS_LIMIT>>", f"{limit}").replace("<<CHAT_HISTORY>>", history).replace("<<SYSMSG>>", guidance_msg).replace("<<ACTION_RULES>>", action_doc.message)
+    llm_provider= get_llm_provider()
+    llm = llm_provider.fresh_model_instance(model=dto.model_name, config=Ollama_Config().get_settings_preset("chat"), ctx_len=get_ctx_num_for_text(prompt_msg))
+    logger.warning("-- ON FAKE USER PROMPT >> SYSMSG --")
+    print(prompt_msg)
+    user_msg = llm.invoke(prompt_msg)
+    logger.warning("-- ON FAKE USER RESPONSE --")
+    print(user_msg)
+
+    return StreamingResponse(llm_prompt_stream(llm_provider=llm_provider, prompt=prompt_msg, model=doc.model, temperature=doc.temperature, max_tokens=doc.max_tokens, stopping_tokens=llm_provider.stopping_tokens()), media_type="text/event-stream")
 
 @router.post(
     "/on-unreal-stream-finished",
@@ -521,7 +527,7 @@ async def on_unreal_stream_finished(update_request: UnrealChatUpdateRequest, req
     }
 )
 async def on_output_action_acknowledge(chat_id:str, dto: ActionAcknowledgeDto, request:Request) -> ActionOutcomeDto:
-    actions_handler = OutputActionsHandler()
+    actions_handler = OutputActionsHandler(get_request_db_name(request))
     action_outcome = ActionResultOutcome(user_msg="[...]")
     if dto.isUserRejection:
         #prompt_request.system_message =f"{event_tags.user_ctx}: {chat.tag.split("-")[1]} has rejected the {dto.action} proposal."
@@ -552,7 +558,7 @@ async def on_ending_action_submit(chat_id:str, dto: ActionAcknowledgeDto, reques
     print(f":: ON ENDING ACTION REQ :: ", dto)
     chats_repo = ChatPromptsRepository(get_request_db_name(request))
     chat = ChatPromptDoc.model_validate(await chats_repo.get_by_id(chat_id))
-    actions_handler = OutputActionsHandler()
+    actions_handler = OutputActionsHandler(get_request_db_name(request))
     action_outcome = ActionResultOutcome(user_msg="[...]")
     if dto.isUserRejection:
         action_outcome = await actions_handler.handle_user_reject(
@@ -653,8 +659,8 @@ def llm_stream(prompt_request:ChatPromptRequest, username:str = "Player", botnam
     #TODO / CHECK: replace prompt keys w/char_names:
     # request.app.model_provider.replace_final_prompt_keys(prompt, { current_key : new_key }) <- provider.templates[template_key]
     logger.warning(f"ON STREAM >> REQ MODEL {prompt_request.model_name}")
-    llm = llm_provider.fresh_model_instance(model=prompt_request.model_name, config=Ollama_Config().get_settings_preset(), ctx_len=len(prompt) + ctx_len_offset if len(prompt) <= max_ctx_len else max_ctx_len)
-    logger.info("-- FINAL PROMPT --")
+    llm = llm_provider.fresh_model_instance(model=prompt_request.model_name, config=Ollama_Config().get_settings_preset("chat"), ctx_len=len(prompt) + ctx_len_offset if len(prompt) <= max_ctx_len else max_ctx_len)
+    logger.info(f"-- FINAL PROMPT >> model: {prompt_request.model_name} --")
     print(prompt)
     response = llm.stream(prompt)
     prev_token = ""
@@ -662,6 +668,22 @@ def llm_stream(prompt_request:ChatPromptRequest, username:str = "Player", botnam
         print(chunk)
         pair = prev_token + chunk.content
         if pair in llm_provider.stopping_tokens():
+            return
+        prev_token = chunk.content
+        yield str(chunk.content)
+
+def llm_prompt_stream(llm_provider: LLM_Provider, prompt: str, model:str, temperature: float, max_tokens: int, stopping_tokens: List[str]):
+    logger.info("-- ollama praise chat stream req --")
+    
+    llm = llm_provider.fresh_model_instance(model=model, config=Ollama_Config(temp=temperature, max_tokens=max_tokens), ctx_len=get_ctx_num_for_text(text=prompt))
+    logger.info("-- FINAL PROMPT --")
+    print(prompt)
+    response = llm.stream(prompt)
+    prev_token = ""
+    for chunk in response:
+        print(chunk)
+        pair = prev_token + chunk.content
+        if pair in stopping_tokens:
             return
         prev_token = chunk.content
         yield str(chunk.content)

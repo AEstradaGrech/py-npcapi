@@ -8,8 +8,8 @@ from api.utils.helpers import get_ctx_num_for_text
 from api.utils.statics import sys_message_types
 
 class FightActionResult(EndChatResult):
-    def __init__(self, reason:str):
-        super().__init__(action="FIGHT", reason=reason)
+    def __init__(self, reason:str, repos_db:str = None):
+        super().__init__(action="FIGHT", reason=reason, repos_db=repos_db)
         self.action_sysmsg_id = sys_message_types.fight_template
         self.default_acknowledge_msg = "Shut up and prepare to fight!"
 

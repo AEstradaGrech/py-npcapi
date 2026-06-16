@@ -3,7 +3,7 @@ loguru
 pymongo
 pydantic
 dotenv
-
+numpy
 nltk
 spacy
 
