@@ -61,20 +61,7 @@ class ChatsMgmtService:
         details.chat_events.append(ChatEvent(category=category, chat_turn_id=turn_id, tag=event_tag, message=message))
         return await details_repo.update(details.id, details) #TODO: check return result
         
-    async def create_summary(self, doc:ChatSummaryDoc) -> ChatSummaryDoc:
-        repo = ChatSummariesRepository(self._currentDB)
-        return ChatSummaryDoc.model_validate(await repo.create(doc))
-    
-    async def update_summary(self, doc:ChatSummaryDoc) -> ChatSummaryDoc:
-        repo = ChatSummariesRepository(self._currentDB)
-        await repo.update(doc.id, doc)
-        return ChatSummaryDoc.model_validate(doc)
-    
-    async def query_summaries(self, conditions: List[QueryCondition]) -> List[ChatSummaryDoc]:
-        repo = ChatSummariesRepository(self._currentDB)
-        docs = await repo.query(conditions=conditions)
-        return [ChatSummaryDoc.model_validate(doc) for doc in docs] if len(docs) > 0 else []
-    
+  
     async def update_details(self, details:ChatDetailsDoc) -> ChatDetailsDoc:
         repo = ChatDetailsRepository(self._currentDB)
         await repo.update(details.id, details)

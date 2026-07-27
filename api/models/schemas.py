@@ -57,6 +57,7 @@ class ModelIntegrationSettingsDto(BaseModel):
     temp:Optional[int] = Field(None, description="parameter in your LLMConfig object to control the randomness of the sampling process used by the LLM to generate responses. ")   
     top_p:Optional[float] = Field(None, description="parameter in your LLMConfig object to control the cumulative probability of token selections up to that point")
     top_k:Optional[int] = Field(None,description="parameter in your LLMConfig object to control the number of highest-scoring tokens that are considered when generating responses.")
+    ctx_len: Optional[int] = Field(None, description="Context Window size in tokens")
     max_tokens:Optional[int] = Field(None,description="param in your LLM to control the size of the output response")  
     repeat_last_n:Optional[int] = Field(None,description="parameter in your LLMConfig object to control how many times previous tokens are repeated during generation. ")
     repeat_penalty:Optional[float] = Field(None,description="Penalize the model for repetition. Higher values result in less repetition.")

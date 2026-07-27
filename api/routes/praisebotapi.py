@@ -290,7 +290,7 @@ async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Re
         doc.messages.append(ChatMessage(Role="context", Message=context_update))
         await repo.update(doc.id, doc)
     prompt_request.chat_history = await memo_service.handle_chat_assistant_memo(chat_id=chat_id, recent_history=prompt_request.chat_history)
-    prompt_request.chat_history[0]["system"] = prompt_request.chat_history[0]["system"].replace("[[OutputActions]]", details.botMemory["actions"])
+    prompt_request.chat_history[0]["system"] = prompt_request.chat_history[0]["system"].replace("[[OutputActions]]", details.botMemory["actions"]).replace("[[ReasonedAction]]", "### REASONED ACTION: FIGHT. You MUST add a {{FIGHT}} tag to your response. Reason: the other character has been provoking you for too many turns and he belongs to an enemy faction")
     #TODO: Analisis sentimiento user_prompt --> OutputAction (NLP | LLM) v2: Agentic Tool
     # 2: Preparar RAG(s) <- Se añade a sys_msg initial_graph_query con info speaker y zona (info fija durante conversacion). ChatsRAG para prompt + history | augmented query (v2)
     return StreamingResponse(llm_stream(prompt_request=prompt_request, username=details.usercharName, botname=details.botcharName), media_type="text/event-stream")

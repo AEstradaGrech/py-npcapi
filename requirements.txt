@@ -4,6 +4,12 @@
 #
 #    pip-compile requirements.in
 #
+aiohappyeyeballs==2.7.1
+    # via aiohttp
+aiohttp==3.14.3
+    # via fsspec
+aiosignal==1.4.0
+    # via aiohttp
 annotated-doc==0.0.4
     # via
     #   fastapi
@@ -15,6 +21,15 @@ anyio==4.13.0
     #   httpx
     #   starlette
     #   watchfiles
+attrs==26.1.0
+    # via aiohttp
+blis==1.3.3
+    # via thinc
+catalogue==2.0.10
+    # via
+    #   spacy
+    #   srsly
+    #   thinc
 certifi==2026.5.20
     # via
     #   httpcore
@@ -25,16 +40,39 @@ charset-normalizer==3.4.7
     # via requests
 click==8.4.1
     # via
+    #   nltk
     #   rich-toolkit
     #   uvicorn
+cloudpathlib==0.24.0
+    # via weasel
 colorama==0.4.6
     # via
     #   click
     #   loguru
+    #   tqdm
     #   typer
     #   uvicorn
+    #   wasabi
+confection==1.3.3
+    # via
+    #   spacy
+    #   thinc
+    #   weasel
+cymem==2.0.13
+    # via
+    #   preshed
+    #   spacy
+    #   thinc
+datasets==5.0.0
+    # via -r requirements.in
+defusedxml==0.7.1
+    # via nltk
 detect-installer==0.1.0
     # via fastapi-cloud-cli
+dill==0.4.1
+    # via
+    #   datasets
+    #   multiprocess
 dnspython==2.8.0
     # via
     #   email-validator
@@ -55,29 +93,53 @@ fastar==0.11.0
     # via
     #   fastapi
     #   fastapi-cloud-cli
+filelock==3.32.0
+    # via
+    #   datasets
+    #   huggingface-hub
+frozenlist==1.8.0
+    # via
+    #   aiohttp
+    #   aiosignal
+fsspec[http]==2026.4.0
+    # via
+    #   datasets
+    #   huggingface-hub
 h11==0.16.0
     # via
     #   httpcore
     #   uvicorn
+hf-xet==1.5.2
+    # via huggingface-hub
 httpcore==1.0.9
     # via httpx
 httptools==0.8.0
     # via uvicorn
 httpx==0.28.1
     # via
+    #   datasets
     #   fastapi
     #   fastapi-cloud-cli
+    #   huggingface-hub
     #   langgraph-sdk
     #   langsmith
     #   ollama
+    #   weasel
+huggingface-hub==1.16.1
+    # via datasets
 idna==3.18
     # via
     #   anyio
     #   email-validator
     #   httpx
     #   requests
+    #   yarl
 jinja2==3.1.6
-    # via fastapi
+    # via
+    #   fastapi
+    #   spacy
+joblib==1.5.3
+    # via nltk
 jsonpatch==1.33
     # via langchain-core
 jsonpointer==3.1.1
@@ -113,6 +175,27 @@ markupsafe==3.0.3
     # via jinja2
 mdurl==0.1.2
     # via markdown-it-py
+multidict==6.7.1
+    # via
+    #   aiohttp
+    #   yarl
+multiprocess==0.70.19
+    # via datasets
+murmurhash==1.0.15
+    # via
+    #   preshed
+    #   spacy
+    #   thinc
+nltk==3.10.0
+    # via -r requirements.in
+numpy==2.5.1
+    # via
+    #   -r requirements.in
+    #   blis
+    #   datasets
+    #   pandas
+    #   spacy
+    #   thinc
 ollama==0.6.2
     # via langchain-ollama
 orjson==3.11.9
@@ -123,8 +206,29 @@ ormsgpack==1.12.2
     # via langgraph-checkpoint
 packaging==26.2
     # via
+    #   datasets
+    #   huggingface-hub
     #   langchain-core
     #   langsmith
+    #   spacy
+    #   thinc
+    #   weasel
+pandas==3.0.5
+    # via
+    #   -r requirements.in
+    #   datasets
+pillow==12.3.0
+    # via -r requirements.in
+preshed==3.0.13
+    # via
+    #   spacy
+    #   thinc
+propcache==0.5.2
+    # via
+    #   aiohttp
+    #   yarl
+pyarrow==25.0.0
+    # via datasets
 pydantic[email]==2.13.4
     # via
     #   -r requirements.in
@@ -136,6 +240,9 @@ pydantic[email]==2.13.4
     #   ollama
     #   pydantic-extra-types
     #   pydantic-settings
+    #   spacy
+    #   thinc
+    #   weasel
 pydantic-core==2.46.4
     # via pydantic
 pydantic-extra-types==2.11.1
@@ -146,6 +253,8 @@ pygments==2.20.0
     # via rich
 pymongo==4.17.0
     # via -r requirements.in
+python-dateutil==2.9.0.post0
+    # via pandas
 python-dotenv==1.2.2
     # via
     #   dotenv
@@ -155,12 +264,18 @@ python-multipart==0.0.32
     # via fastapi
 pyyaml==6.0.3
     # via
+    #   datasets
+    #   huggingface-hub
     #   langchain-core
     #   uvicorn
+regex==2026.7.19
+    # via nltk
 requests==2.34.2
     # via
+    #   datasets
     #   langsmith
     #   requests-toolbelt
+    #   spacy
 requests-toolbelt==1.0.0
     # via langsmith
 rich==15.0.0
@@ -177,17 +292,44 @@ sentry-sdk==2.62.0
     # via fastapi-cloud-cli
 shellingham==1.5.4
     # via typer
+six==1.17.0
+    # via python-dateutil
+smart-open==8.0.1
+    # via weasel
+spacy==3.8.14
+    # via -r requirements.in
+spacy-legacy==3.0.12
+    # via spacy
+spacy-loggers==1.0.5
+    # via spacy
+srsly==2.5.3
+    # via
+    #   spacy
+    #   thinc
+    #   weasel
 starlette==1.2.1
     # via fastapi
 tenacity==9.1.4
     # via langchain-core
+thinc==8.3.13
+    # via spacy
+tqdm==4.69.1
+    # via
+    #   datasets
+    #   huggingface-hub
+    #   nltk
+    #   spacy
 typer==0.26.7
     # via
     #   fastapi-cli
     #   fastapi-cloud-cli
+    #   huggingface-hub
+    #   spacy
+    #   weasel
 typing-extensions==4.15.0
     # via
     #   fastapi
+    #   huggingface-hub
     #   langchain-core
     #   langchain-protocol
     #   pydantic
@@ -200,6 +342,8 @@ typing-inspection==0.4.2
     #   fastapi
     #   pydantic
     #   pydantic-settings
+tzdata==2026.3
+    # via pandas
 urllib3==2.7.0
     # via
     #   requests
@@ -213,17 +357,32 @@ uvicorn[standard]==0.49.0
     #   fastapi
     #   fastapi-cli
     #   fastapi-cloud-cli
+wasabi==1.1.3
+    # via
+    #   spacy
+    #   thinc
+    #   weasel
 watchfiles==1.2.0
     # via uvicorn
+weasel==1.0.0
+    # via spacy
 websockets==16.0
     # via
     #   langsmith
     #   uvicorn
 win32-setctime==1.2.0
     # via loguru
+wrapt==2.2.2
+    # via smart-open
 xxhash==3.7.0
     # via
+    #   datasets
     #   langgraph
     #   langsmith
+yarl==1.24.5
+    # via aiohttp
 zstandard==0.25.0
     # via langsmith
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

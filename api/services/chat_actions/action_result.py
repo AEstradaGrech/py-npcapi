@@ -132,7 +132,7 @@ class ActionResult(ABC):
     
     async def add_analysis_memo(self, action:str, summarizer_tag:str, session_id:str, chat_id:str, prompt:str, memo_text:str, context:str, reason:str, chat_turn:int = None, status:str = "CURRENT") -> ChatSummaryDoc:
         if chat_turn is None:
-            chat = await praise_service.get_chat_doc(chat_id)
+            chat = await self._chats_svc.get_chat_doc(chat_id)
             chat_turn = len(chat.messages)
         memo = ChatSummaryDoc(
             sys_prompt_tag=summarizer_tag,
@@ -147,7 +147,7 @@ class ActionResult(ABC):
                           f"REASON: {reason}",
                           f"{event_tags.output_action}:{action} >> chat_turn: {chat_turn}"] # [output-action-result]:X <- track eventos / formato chat_events
         )
-        return await self._chats_svc.create_summary(memo)
+        return await self._memo_svc.create_summary(memo)
 
     async def deprecate_memo(self, session_id:str, action_tag:str) -> ChatSummaryDoc | None:
         docs = await self._memo_svc.query_summaries(conditions=[

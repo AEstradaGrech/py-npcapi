@@ -30,10 +30,9 @@ class Ollama_Provider(LLM_Provider):
     def __init__(self):
         super().__init__()
         self.display_name = "ollama"
-        self._available_models = ["llama3.1-lexi-v2", "hermes3","qwen2.5:7b", "llama3.1:8b", "qwen:2.5:14b",  "DarkIdol-llama3.1-8B", "Peach-9B-Roleplay", "MN-DARKEST-UNIVERSE-29B-Q3m", "Dark-Champion-MOE-21B-uncen-ablit-Q5"]
+        self._available_models = ["llama3.1-lexi-v2", "llama3.3-heretic", "hermes3","qwen2.5:7b", "llama3.1:8b", "qwen:2.5:14b",  "DarkIdol-llama3.1-8B", "Peach-9B-Roleplay", "MN-DARKEST-UNIVERSE-29B-Q3m", "Dark-Champion-MOE-21B-uncen-ablit-Q5"]
         self._model_name = self._available_models[0]
-        if self._config is None:
-            self._config = LLM_Config()
+        self._config = Ollama_Config()
 
     @override
     def chat_request(self, request: ChatPromptRequest, excluded_events: List[str] = [], guidance_token: str = '') -> str:
@@ -53,8 +52,8 @@ class Ollama_Provider(LLM_Provider):
         llm = ChatOllama(
             model=self._mode_name,
             temperature = temperature,
-            num_predict = max_tokens,
-            num_ctx=ctx_len,
+            num_predict = max_tokens if max_tokens is not None else self._config.max_tokens,
+            num_ctx=self._config.ctx_len if ctx_len is None else ctx_len,
             num_thread=self._config.n_threads,
             num_gpu=self._config.ngl,
             top_k=self._config.top_k,
@@ -68,8 +67,9 @@ class Ollama_Provider(LLM_Provider):
     def fresh_model_instance(self, model:str, ctx_len: int = None, config: LLM_Config = None) -> Any:
         if config is None:
             config = Ollama_Config().get_settings_preset(ctx_len=ctx_len)
-        if isinstance(config, Ollama_Config):
-            config: Ollama_Config = config
+        config: Ollama_Config = config    
+        print(f"MODEL PROVIDER SETTINGS TYPE >> {type(config)}")
+        print(f"MODEL PROVIDER CONFIG ", config)
         llm = ChatOllama(
             model=model if model is not None and model in self._available_models else self._model_name,
             temperature = config.temp,

@@ -35,7 +35,7 @@ from dataclasses import dataclass
 """
 @dataclass
 class LLM_Config:
-    temp:           int   = 0.7
+    temp:           float   = 0.7
     top_p:          float = 0.5
     top_k:          int   = 10
     n_batch:        int   = 8
@@ -50,27 +50,29 @@ class LLM_Config:
 
     def map_from_request(self, req: ModelIntegrationSettingsDto):
         if req.temp is not None:
-            self.temp = req.temp
+          self.temp = req.temp
         if req.max_tokens is not None:
-            self.max_tokens = req.max_tokens
-            self.num_ctx = req.max_tokens
-        if req.top_k is not None:
-            self.top_k = req.top_k
-        if req.top_p is not None:
-            self.top_p = req.top_p
-        if req.repeat_last_n is not None:
-            self.repeat_last_n = req.repeat_last_n
-        if req.repeat_penalty is not None:
-            self.repeat_penalty = req.repeat_penalty
+          self.max_tokens = req.max_tokens
         if req.ctx_len is not None:
-            self.ctx_len = req.ctx_len
+          self.num_ctx = req.ctx_len
+        if req.top_k is not None:
+          self.top_k = req.top_k
+        if req.top_p is not None:
+          self.top_p = req.top_p
+        if req.repeat_last_n is not None:
+          self.repeat_last_n = req.repeat_last_n
+        if req.repeat_penalty is not None:
+          self.repeat_penalty = req.repeat_penalty
+        if req.ctx_len is not None:
+          self.ctx_len = req.ctx_len
         if req.n_threads is not None:
-            self.n_threads = req.n_threads
+          self.n_threads = req.n_threads
         if req.ngl is not None:
-            self.ngl = req.ngl
+          self.ngl = req.ngl
         return self
     
     def get_settings_preset(self, name:str = "default"):
+        print("BASE CLASS GET PRESETS")
         return LLM_Config()
     
   

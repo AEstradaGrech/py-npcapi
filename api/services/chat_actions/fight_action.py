@@ -1,6 +1,7 @@
 from typing import List, override
-
+from loguru import logger
 from api.infrastructure.llm.llm_provider import LLM_Provider
+from api.infrastructure.llm.settings.ollama_config import Ollama_Config
 from api.infrastructure.models.reasoning_schemas import FightEventAnalysis
 from api.services.chat_actions.action_result import ActionResultOutcome
 from api.services.chat_actions.chat_ends import EndChatResult
@@ -44,7 +45,10 @@ class FightActionResult(EndChatResult):
         analysis_text = analysis_text.replace("<<USERNAME>>", username)
         analysis_text = analysis_text.replace("<<BOTNAME>>", botname)
         print("-- FIGHT >> ANALYSIS TEMPLATED TEXT --", analysis_text)
-        llm = llm_provider.current_integration().fresh_model_instance(model=llm_provider.current_model(), config=llm_provider.config().get_settings_preset("analyis"), ctx_len=get_ctx_num_for_text(analysis_text))
+        cfg:Ollama_Config = llm_provider.config().get_settings_preset(name="analysis")
+        logger.warning(f"-- CONFIG TYPE >> {type(cfg)} --")
+        
+        llm = llm_provider.fresh_model_instance(model=llm_provider.current_model(), config=cfg, ctx_len=get_ctx_num_for_text(analysis_text))
         analysis_llm = llm.with_structured_output(schema=FightEventAnalysis)
         analysis_result:FightEventAnalysis = analysis_llm.invoke(analysis_text)
         print("-- FIGHT >> ANALYSIS RESULT --", analysis_result)

@@ -13,6 +13,7 @@ class Ollama_Config(LLM_Config):
 
     @override
     def get_settings_preset(self, name = "default", ctx_len: int = 4096):
+        print("OLLAMA CONFIG >> GETTING PRESET")
         match name:
             case "default":
                 return Ollama_Config(
@@ -21,7 +22,7 @@ class Ollama_Config(LLM_Config):
                     top_p=0.5, 
                     top_k=10, 
                     mirostat=1,
-                    ctx_len=ctx_len, 
+                    ctx_len=ctx_len if ctx_len is not None else self._config.num_ctx, 
                     mirostat_eta=0.3, 
                     mirostat_tau=5.0, 
                     repeat_last_n=-1, 
@@ -33,7 +34,7 @@ class Ollama_Config(LLM_Config):
                     top_p=0.7, 
                     top_k=10, 
                     mirostat=1,
-                    ctx_len=ctx_len, 
+                    ctx_len=ctx_len if ctx_len is not None else self._config.num_ctx, 
                     mirostat_eta=0.2, 
                     mirostat_tau=4.0, 
                     repeat_last_n=-1, 
@@ -45,12 +46,13 @@ class Ollama_Config(LLM_Config):
                     top_p=0.8, 
                     top_k=10, 
                     mirostat=1,
-                    ctx_len=ctx_len, 
+                    ctx_len=ctx_len if ctx_len is not None else self._config.num_ctx, 
                     mirostat_eta=0.3, 
                     mirostat_tau=5.0, 
                     repeat_last_n=-1, 
                     repeat_penalty=1.3)
             case "analysis":
+                print("RETURNING ANALYSIS SETTINGS")
                 return Ollama_Config(
                     temp=0.7, 
                     max_tokens=600, 

@@ -10,6 +10,7 @@ spacy
 langchain-core
 langchain-ollama
 langgraph
+langchain
 
 pillow
 pandas
