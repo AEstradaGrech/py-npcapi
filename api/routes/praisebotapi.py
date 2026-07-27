@@ -22,6 +22,7 @@ from api.services.chat_actions.output_actions_handler import OutputActionsHandle
 from api.services.gamechar_mgmt_service import CharactersMgmtService
 from api.services.memo_mgmt_service import MemoMgmtService
 from api.services.mood_analysis_service import MoodAnalysisService
+from api.services.reasoning_mgmt_service import ReasoningMgmtService
 from api.utils.helpers import HTTPLoggedException, get_ctx_num_for_text, get_llm_provider, get_request_db_name, unreal_messages_to_history, chat_history_to_unreal
 from api.utils.statics import praise_db_name, event_tags, chat_event_cats, chat_turns_to_generate_memory, sys_message_types, max_ctx_len, max_ctx_len, ctx_len_offset
 
@@ -68,6 +69,7 @@ async def init_conversation(dto: ConversationDto, request: Request):
     sessions_repo = ChatSessionsRepository(get_request_db_name(request))
     chats_repo = ChatPromptsRepository(get_request_db_name(request))
     chat_details_repo = ChatDetailsRepository(get_request_db_name(request))
+
     #SET INITIAL BOT MOOD
     mood_analysis_service = MoodAnalysisService()
     dto.botInfo.mood = mood_analysis_service.handle_personality_mood_transition("Relaxed", dto.botInfo.personalities)
@@ -129,8 +131,9 @@ async def init_conversation(dto: ConversationDto, request: Request):
         usercharContext=dto.speakerInfo.actualContext,
         botcharContext=dto.botInfo.actualContext,
     )
+    chat_details.botMemory["current-mood"] = await ctx_svc.get_mood_doc(dto.botInfo.mood) 
     chat_details.id = ObjectId()
-    formatted_sys_msg = sys_msgs["BASE"].replace("[[OutputActions]]", chat_details.botMemory['actions'])
+    formatted_sys_msg = sys_msgs["BASE"].replace("[[OutputActions]]", chat_details.botMemory['actions']).replace("[[ReasonedAction]]", "").replace("[[CurrentMood]]", chat_details.botMemory.get("current-mood"))
     #TODO v2 -> if session.summary --> "Your OVERALL OPINION about the other character based on your previous experiences is: session.summary"
     if is_new_session is False:
         initial_memo_text = ""
@@ -194,7 +197,7 @@ async def init_conversation(dto: ConversationDto, request: Request):
     else:
         initial_memo_text = f"INITIALIZED. It is the first time that you meet the user's character. You don't know the user name yet, the character has not been introduced. DO NOT call the user character by it's name UNTIL intruduced in the conversation."
     if initial_memo_text != "" and initial_memo_text is not None:
-        chat_details.botMemory["initial-memo"] = f"Your character has also 'memory' (e.g. summarizations of previous interactions with the Player Character),\nuse them as a 'knowledge base' to have a better understanding when the Player references past conversations, characters, locations or situations, hence providing a more contextualized and precise response. This is your 'Memory' or knowledge-base:\n{initial_memo_text}"
+        chat_details.botMemory["chat-memo"] = f"Your character has also 'memory' (e.g. summarizations of previous interactions with the Player Character),\nuse them as a 'knowledge base' to have a better understanding when the Player references past conversations, characters, locations or situations, hence providing a more contextualized and precise response. This is your 'Memory' or knowledge-base:\n{initial_memo_text}"
     # se recuperan los longterm memos de la session.current_chat_id antes de actualizar la session con la el nuevo id
     session_doc.current_chat_id = chat_insert.id
     session_doc.current_chat_summary = ""
@@ -290,6 +293,8 @@ async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Re
         doc.messages.append(ChatMessage(Role="context", Message=context_update))
         await repo.update(doc.id, doc)
     prompt_request.chat_history = await memo_service.handle_chat_assistant_memo(chat_id=chat_id, recent_history=prompt_request.chat_history)
+    if details.botMemory.get('current-mood') is not None:
+        prompt_request.chat_history[0]["system"] = prompt_request.chat_history[0]["system"].replace("[[CurrentMood]]", details.botMemory.get("current-mood"))
     prompt_request.chat_history[0]["system"] = prompt_request.chat_history[0]["system"].replace("[[OutputActions]]", details.botMemory["actions"]).replace("[[ReasonedAction]]", "### REASONED ACTION: FIGHT. You MUST add a {{FIGHT}} tag to your response. Reason: the other character has been provoking you for too many turns and he belongs to an enemy faction")
     #TODO: Analisis sentimiento user_prompt --> OutputAction (NLP | LLM) v2: Agentic Tool
     # 2: Preparar RAG(s) <- Se añade a sys_msg initial_graph_query con info speaker y zona (info fija durante conversacion). ChatsRAG para prompt + history | augmented query (v2)
@@ -438,8 +443,9 @@ async def handle_conversation(chat_id:str, dto:ConversationPromptDto, request:Re
         200: {"description" : "Succesful response with the recent chat history"}
     }
 )
-async def on_stream_finished(update_request: SessionHistoryUpdateRequest, request:Request) -> StreamEndResponse:
+async def on_stream_finished(update_request: SessionHistoryUpdateRequest, request:Request, background_tasks: BackgroundTasks) -> StreamEndResponse:
     print("-- UPDATE REQUEST --",update_request)
+    reasoning_svc: ReasoningMgmtService = ReasoningMgmtService(get_request_db_name(request))
     sessions_repo = ChatSessionsRepository(get_request_db_name(request))
     chats_repo = ChatPromptsRepository(get_request_db_name(request))
     memo_service = MemoMgmtService(get_request_db_name(request))
@@ -464,6 +470,9 @@ async def on_stream_finished(update_request: SessionHistoryUpdateRequest, reques
         logger.info(f"-- ON OUTPUT ACTION RESULT -- END CHAT >> REASON: {output_action_result.reason}")
     else:
         logger.info(f"-- ON OUTPUT ACTION RESULT -- KEEP CHATTING >> REASON: {output_action_result.reason}")
+
+    background_tasks.add_task(reasoning_svc.handle_chat_reasoning, chat_doc.id)
+
     return StreamEndResponse(history=history, 
             chatResult=ChatResultDto(
                 action=output_action_result.action_tag,

@@ -76,8 +76,9 @@ class MemoMgmtService():
             new_mood = await self.process_chat_mood_analysis(chat_id= chat.id, attitude_label=label)
             if new_mood != "None":
                 logger.info(f"-- CHAT MOOD UPDATE >> NEW MOOD: {new_mood}")
-                await self.insert_chat_event(chat_id=chat.id, category="assistant", event_tag=event_tags.assistant_memo, message=f"CHAT MOOD TRANSITION >> NEW MOOD: {new_mood} >> doc_id: {memory_insert.id}", turn_id=len(chat.messages))
-            await self.insert_chat_event(chat_id=chat.id, category="assistant", event_tag=event_tags.assistant_memo, message=f"MEMORY_GENERATION >> {memo.observations[0]} >> doc_id: {memory_insert.id}", turn_id=len(chat.messages))
+                await self._chats_svc.insert_chat_event(chat_id=chat.id, category="assistant", event_tag=event_tags.assistant_memo, message=f"CHAT MOOD TRANSITION >> NEW MOOD: {new_mood} >> doc_id: {memory_insert.id}", turn_id=len(chat.messages))
+                
+            await self._chats_svc.insert_chat_event(chat_id=chat.id, category="assistant", event_tag=event_tags.assistant_memo, message=f"MEMORY_GENERATION >> {memo.observations[0]} >> doc_id: {memory_insert.id}", turn_id=len(chat.messages))
             details = await self.get_chat_details(chat_id=chat.id)
             if details is not None:
                 update_memo_cache_value(details=details, key="chat-memo", value=f"\n\nSHORT TERM MEMORY {len(memos) +1}:\n{memo.summary.strip()}")
@@ -131,7 +132,7 @@ class MemoMgmtService():
             session_doc.current_summary_update_date = datetime.now()
             #session_doc.summary = relationship_summarization[1]
             await sessions_repo.update(session_doc.id, session_doc)
-            await self.insert_chat_event(chat_id=chat.id, category="assistant", event_tag=event_tags.assistant_memo, message=f"LONGTERM-MEMORY_GENERATION >> {memo.observations[0]} >> doc_id: {memory_insert.id}", turn_id=len(chat.messages))
+            await self._chats_svc.insert_chat_event(chat_id=chat.id, category="assistant", event_tag=event_tags.assistant_memo, message=f"LONGTERM-MEMORY_GENERATION >> {memo.observations[0]} >> doc_id: {memory_insert.id}", turn_id=len(chat.messages))
             return memory_insert
         return None  
 
@@ -178,10 +179,9 @@ class MemoMgmtService():
             return "None"
         # if mood is not None:
         #     result += f"- Current Mood:\n> {mood.name}: {mood.sys_msg_text}"
-        profile_split = details.botMemory["profile"].split("- Current Mood:")
-        print("-- PROFILE SPLIT:\n", profile_split)
-        details.botMemory["profile"] = profile_split[0].strip() + f"\n- Current Mood:\n> {mood_doc.name}: {mood_doc.sys_msg_text}"
-        logger.info(f"-- CHAT MOOD TRANSITION >> PROFILE UPDATE:\n {details.botMemory["profile"]}")
+        
+        details.botMemory["current-mood"] = f"- Current Mood:\n> {mood_doc.name}: {mood_doc.sys_msg_text}"
+        logger.info(f"-- CHAT MOOD TRANSITION >> PROFILE UPDATE:\n {details.botMemory.get("current-mood")}")
         await self.update_details(details=details)
         return details.botMood #mantiene el mood en el que está
 
@@ -189,8 +189,8 @@ class MemoMgmtService():
         details = await self._chats_svc.get_chat_details(chat_id=chat_id)
         if details is None:
             raise HTTPLoggedException(status_code=500, detail=f"CHAT MEMORY SETUP ERROR >> No ChatDetailsDoc found for chat: {chat_id}. Ongoing chats MUST have an associated Details doc")
-        if details.botMemory.get("initial-memo") is not None: # Añade RECEN & LONG (if any) formados OnInit (chats previos)
-            recent_history[0]["system"] += f"\n\n{details.botMemory["initial-memo"]}"
+        if details.botMemory.get("chat-memo") is not None: # Añade RECEN & LONG (if any) formados OnInit (chats previos)
+            recent_history[0]["system"] += f"\n\n{details.botMemory["chat-memo"]}"
         #Añade REMARKABLES ocurridos en current_session (como JOIN)
         #print("-- DETAILS EVENTS --", details.chat_events)
         # chat_remarkable_events = filter_objects_by_kvp(key="category", value=chat_event_cats.to_string(chat_event_cats.remarkable_event), objects=details.chat_events)

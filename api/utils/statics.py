@@ -11,7 +11,7 @@ summary_role_tags = {
     "system": "<<CONTEXTUAL>>"
 }
 
-default_db_name = "PyNPCsDB"
+default_db_name = "PyGameBotsDB"
 praise_db_name = "PraiseDB"
 max_ctx_len = 10000
 ctx_len_offset = 100

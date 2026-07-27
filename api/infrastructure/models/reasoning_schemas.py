@@ -1,10 +1,20 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
+## modelo para npc bot v2
 class ActionDecision(BaseModel):
     reason: str = Field(description="A brief explanation of your deliberation (15-20 words)")
     output_action: str = Field(description="Name of the selected OUTPUT ACTION")
 
+class ActionReasoning(BaseException):
+    """
+    Schema representing the output of a reasoning about which is the best OUTPUT ACTION to pick for the given character profile and
+    conversation context.
+    """
+    reason: str = Field(description="A brief explanation of your deliberation (15-20 words) justifiying why you selected the OUTPUT ACTION")
+    output_action: str = Field(description="Name of the selected OUTPUT ACTION from the list of available")
+    is_mandatory: bool = Field(description="A boolean value to indicate whether the action must be appended to the next NPC response or it is a consideration to bias the model a bit")
+        
 class JoinEventAnalysis(BaseModel):
     """
     Analysis of a conversation where two characters agree to team up.

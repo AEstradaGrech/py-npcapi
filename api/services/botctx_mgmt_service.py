@@ -5,6 +5,7 @@ from loguru import logger
 
 from api.infrastructure.models.char_db_schemas import CharacterMoodDoc, CharacterPersonalityDoc, CharacterRoleDoc, CharacterTraitDoc
 from api.infrastructure.models.db_schemas import SystemMessageDoc
+from api.infrastructure.repositories.mongo.chat_prompts import GameCharDoc
 from api.infrastructure.repositories.mongo.mongo_repos import CharacterMoodsRepository, CharacterPersonalitiesRepository, CharacterRolesRepository, CharacterTraitsRepository, GameCharsRepository
 from api.infrastructure.repositories.mongo.sysmsgs_repo import SysMessagesRepository
 from api.models.prompting_schemas import BotInfoDto, ConversationDto
@@ -94,7 +95,7 @@ class BotContextMgmtService:
     #devuelve el texto base con todas las secciones menos las que se cachean en Details.Memo
     
     async def get_base_instruction_CoTv2(self, dto:ConversationDto, with_char_desc:bool = True) -> dict[str,str]:
-        template_msg = SystemMessageDoc.model_validate(await self._sysRepo.get_by_type_and_tag(sys_message_types.base_template, "CoT-v2.2.2"))
+        template_msg = SystemMessageDoc.model_validate(await self._sysRepo.get_by_type_and_tag(sys_message_types.base_template, "CoT-v2.2.3"))
         # chat_constraints = await repo.get_many("type", sys_message_types.chat_constraints)
         # chat_rules = await repo.get_many("type", sys_message_types.chat_rules)
         world_context = SystemMessageDoc.model_validate(await self._sysRepo.get_by_type_and_tag(sys_message_types.world_context, "v1"))
@@ -124,10 +125,24 @@ class BotContextMgmtService:
         return {"BASE": sys_msg, "PROFILE":profile ,"ACTIONS": output_actions_text}
     
     async def get_formatted_character_desc(self, botInfo: BotInfoDto) -> str:
-        # v2 --> character = chars_repo.botInfo.character_id
+            #get, format background_story, motivations and goal if not null, append to final text, store in details for reasoning
         result = ""
         if botInfo.charName != "":
             result += f"- Character Name: {botInfo.charName}\n"
+
+        full_profile_text: str = None
+        if botInfo.characterId is not None and len(botInfo.characterId) > 0:
+            print("Retrieve full profile")
+            profile_rec = await self._charsRepo.get_by_id(botInfo.characterId)
+            if profile_rec:
+                profile_doc: GameCharDoc = GameCharDoc.model_validate(profile_rec)
+                result += f"- Age: {profile_doc.age}" # overwrite just in cas
+                result += f"- Faction: {profile_doc.faction}"
+                full_profile_text += f"\n- Background Story: {profile_doc.background_story}"
+                full_profile_text += f"\n- Motivations: {profile_doc.motivations}"
+                full_profile_text += f"\n- Typical routines: {profile_doc.typical_routines}"
+                if profile_doc.goal is not None and len(profile_doc.goal) > 0:
+                    full_profile_text += f"\n- Character Goal: {profile_doc.goal}"
         #TODO: result += "- Character Description:\n <-- Name y Profile (tipo RandomWorlds)"
         #get role
         if botInfo.charRole == "":
@@ -135,6 +150,13 @@ class BotContextMgmtService:
         role = CharacterRoleDoc.model_validate(await self._rolesRepo.get("name", botInfo.charRole))
         result += f"- Character Role:\n"
         result += f"> {role.name}: {role.sys_msg_text}\n"
+        if full_profile_text is not None and len(full_profile_text) > 0:
+            result += f"\n{full_profile_text.trim()}"
+        else:
+            if botInfo.factionName is not None and len(botInfo.factionName) > 0:
+                result += f"- Age: {botInfo.charAge}"
+            if botInfo.factionName is not None and len(botInfo.factionName) > 0:
+                result += f"- Faction: {botInfo.factionName}"          
         # get personalities
         conditions = []
         if len(botInfo.personalities) > 0 or len(botInfo.traits) > 0:
@@ -155,13 +177,17 @@ class BotContextMgmtService:
             for record in traits:
                 doc = CharacterTraitDoc.model_validate(record)
                 result += f"> {doc.name}: {doc.sys_msg_text}\n"
-        # get mood
-        if botInfo.mood != "":
-            mood:CharacterMoodDoc = await self.get_mood_doc(mood=botInfo.mood)
-            if mood is not None:
-                result += f"- Current Mood:\n> {mood.name}: {mood.sys_msg_text}" #Esto se supone que puede cambiar en el transcurso de la conversacion CHECK  / WG
+        # # get mood
+        # if botInfo.mood != "":
+        #     mood:CharacterMoodDoc = await self.get_mood_doc(mood=botInfo.mood)
+        #     if mood is not None:
+        #         result += f"- Current Mood:\n> {mood.name}: {mood.sys_msg_text}" #Esto se supone que puede cambiar en el transcurso de la conversacion CHECK  / WG
         return result
 
+    async def get_mood_doc(self, mood: str) -> str:
+        doc = await self.get_mood_doc(mood)
+        return "" if doc is None else f"- Current Mood:\n>{doc.name}: {doc.sys_msg_text}"
+    
     async def get_mood_doc(self, mood:str) -> CharacterMoodDoc | None:
         record = await self._moodsRepo.get("name", mood)
         return None if record is None else CharacterMoodDoc.model_validate(record)

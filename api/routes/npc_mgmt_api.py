@@ -15,6 +15,7 @@ from api.mappers.prompting_mappers import charDtoToDoc
 from api.models.character_schemas import CharacterMoodDto, CharacterPersonalityDto, CharacterRoleDto, CharacterTraitDto, FullPraiseCharDto, PraiseCharacterDto
 from api.models.prompting_schemas import BotInfoDto, ChatEventDto, ChatMessageDto, ConversationDto, GenerateCharacterRequest, SpeakerInfoDto, UnrealChatHistory
 from api.models.schemas import CollectionResponse, QueryCondition, QueryFilter, SystemMessageDto
+from api.services.chats_mgmt_service import ChatsMgmtService
 from api.services.gamechar_mgmt_service import CharactersMgmtService
 from api.utils.helpers import HTTPLoggedException, get_llm_provider, get_request_db_name
 from api.utils.statics import praise_db_name, sys_message_types, chat_event_cats
@@ -272,6 +273,6 @@ async def add_chat_event(chat_id:str, dto: ChatEventDto, request: Request) -> bo
         raise HTTPLoggedException(status_code=400, detail="NO CHAT EVENT MESSAGE PRESENT IN DTO")
     if len(dto.category) == 0:
         raise HTTPLoggedException(status_code=400, detail="NO CHAT EVENT CATEGORY PRESENT IN DTO")
-    svc = CharactersMgmtService(get_request_db_name(request))
+    svc = ChatsMgmtService(get_request_db_name(request))
     return await svc.insert_chat_event(chat_id=chat_id, category=dto.category, event_tag=chat_event_cats.to_string(dto.tag_id), message=dto.message)
     
