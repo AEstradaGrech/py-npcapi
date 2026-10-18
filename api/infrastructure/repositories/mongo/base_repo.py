@@ -1,7 +1,7 @@
 from abc import ABC
 from bson import ObjectId
 import pydantic
-from pymongo import MongoClient
+from pymongo import AsyncMongoClient
 from typing import Annotated, Any, TypeVar, Generic, Optional, List
 from loguru import logger
 
@@ -16,14 +16,14 @@ class MongoRepository(Generic[T], ABC):
     conn_str:str = "mongodb://localhost:27017/"
     database_name:str = "CharStudio"
     collection_name:str = "ChatPrompts"
-    client: MongoClient = None
+    client: AsyncMongoClient = None
     database = None
     collection = None
 
     def __init__(self, db_name, col_name):
         self.database_name = db_name
         self.collection_name = col_name
-        self.client = MongoClient(host=self.conn_str)
+        self.client = AsyncMongoClient(host=self.conn_str)
         self.database = self.client[self.database_name]
         self.collection = self.database[self.collection_name]
     

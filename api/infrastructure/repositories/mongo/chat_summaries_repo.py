@@ -8,7 +8,7 @@ class ChatSummariesRepository(MongoRepository[ChatSummaryDoc]):
         super().__init__(db_name=db_name, col_name=col_name)
 
     async def get_chat_summary(self, chat_id:str) -> ChatSummaryDoc:
-        docs =[ doc for doc in self.collection.aggregate([
+        docs =[ doc for doc in await self.collection.aggregate([
             {"$match" : {"chat_collection_id": {'$regex': chat_id}}},
             {"$sort" : {"creation_date": -1}}
         ])]

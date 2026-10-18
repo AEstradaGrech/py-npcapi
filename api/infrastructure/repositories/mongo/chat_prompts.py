@@ -11,13 +11,13 @@ class ChatPromptsRepository(MongoRepository[ChatPromptDoc]):
         super().__init__(db_name=db_name, col_name=col_name)
         
     async def find_by_session_id(self, session_id: str) -> List[ChatPromptDoc]:
-        return [ChatPromptDoc.model_validate(doc) for doc in self.collection.find({"sessionId": session_id})]
+        return [ChatPromptDoc.model_validate(doc) for doc in await self.collection.find({"sessionId": session_id})]
     
 class ChatSessionsRepository(MongoRepository[SessionDoc]):
     def __init__(self, db_name:str, col_name:str = "ChatSessions"):
         super().__init__(db_name=db_name, col_name=col_name)
     async def get_user_sessions_containing_tag(self, username:str, tag:str) -> List[SessionDoc]:
-        return [doc for doc in self.collection.find({"$and":[{"username": username},{"tag": {'$regex': tag}}]})]
+        return [doc for doc in await self.collection.find({"$and":[{"username": username},{"tag": {'$regex': tag}}]})]
     
 class ChatDetailsRepository(MongoRepository[ChatDetailsDoc]):
     def __init__(self, db_name:str, col_name:str = "ChatDetails"):
